@@ -1,0 +1,58 @@
+<?xml version="1" encoding="UTF-8"?>
+<!DOCTYPE gowin-fpga-project>
+<Project>
+    <Template>FPGA</Template>
+    <Version>5</Version>
+    <Device name="GW2AR-18C" pn="GW2AR-LV18QN88C8/I7">gw2ar18c-000</Device>
+    <FileList>
+        <File path="minimig/Minimig1.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Agnus.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Paula.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Denise.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Copper.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Blitter.v" type="file.verilog" enable="1"/>
+        <File path="minimig/CIA8520.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Floppy.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Amber.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Beamcounter.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Bitplanes.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Gayle.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Gary.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Sprites.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Audio.v" type="file.verilog" enable="1"/>
+        <File path="minimig/Clock.v" type="file.verilog" enable="1"/>
+        <File path="fx68k/fx68k.sv" type="file.verilog" enable="1"/>
+        <File path="fx68k/fx68kAlu.sv" type="file.verilog" enable="1"/>
+        <File path="fx68k/uaddrPla.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/audio_clock_regeneration_packet.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/audio_info_frame.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/audio_sample_packet.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/auxiliary_video_information_info_frame.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/hdmi.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/packet_assembler.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/packet_picker.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/serializer.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/source_product_description_info_frame.sv" type="file.verilog" enable="1"/>
+        <File path="hdmi/tmds_channel.sv" type="file.verilog" enable="1"/>
+        <File path="misc/mcu_spi.v" type="file.verilog" enable="1"/>
+        <File path="misc/sysctrl.v" type="file.verilog" enable="1"/>
+        <File path="misc/hid.v" type="file.verilog" enable="1"/>
+        <File path="misc/osd_u8g2.v" type="file.verilog" enable="1"/>
+        <File path="misc/ws2812.v" type="file.verilog" enable="1"/>
+        <File path="misc/video_analyzer.v" type="file.verilog" enable="1"/>
+        <File path="misc/sd_card.v" type="file.verilog" enable="1"/>
+        <File path="misc/sd_rw.v" type="file.verilog" enable="1"/>
+        <File path="misc/sdcmd_ctrl.v" type="file.verilog" enable="1"/>
+	<File path="tang/nano20k/gowin_clkdiv/gowin_clkdiv.v" type="file.verilog" enable="1"/>
+        <File path="tang/nano20k/gowin_rpll/pll_142m.v" type="file.verilog" enable="1"/>
+        <File path="tang/nano20k/top.sv" type="file.verilog" enable="1"/>
+        <File path="tang/nano20k/sdram.v" type="file.verilog" enable="1"/>
+        <File path="tang/nano20k/flash_dspi.v" type="file.verilog" enable="1"/>
+        <File path="tang/nano20k/gowin_dpb/sector_dpram.v" type="file.verilog" enable="1"/>
+        <File path="tang/nano20k/nanomig.cst" type="file.cst" enable="1"/>
+        <File path="tang/nano20k/nanomig.sdc" type="file.sdc" enable="1"/>
+        <File path="fx68k/microrom.mem" type="file.other" enable="1"/>
+        <File path="fx68k/nanorom.mem" type="file.other" enable="1"/>
+        <File path="ram_test/ram_test.hex" type="file.other" enable="1"/>
+    </FileList>
+</Project>

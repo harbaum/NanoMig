@@ -1,0 +1,10 @@
+*.gprj linguist-language=XML
+*.cst linguist-language=Text
+*.sdc linguist-language=Text
+*.ipc linguist-language=Text
+*.mod linguist-language=Text
+*.mi linguist-language=Text
+*.do linguist-language=Text
+*.cfg linguist-language=Text
+*.fs linguist-language=Text
+
