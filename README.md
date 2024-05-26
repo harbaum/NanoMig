@@ -1,0 +1,24 @@
+# NanoMig
+
+NanoMig is a port of the [Minimig](https://en.wikipedia.org/wiki/Minimig) to the [Tang Nano 20k](https://wiki.sipeed.com/hardware/en/tang/tang-nano-20k/nano-20k.html).
+
+This is based on the [MiSTeryNano project](https://github.com/harbaum/MiSTeryNano/) and also relies on a [M0S Dock](https://wiki.sipeed.com/hardware/en/maixzero/m0s/m0s.html) being connected to the Tang Nano 20k.
+
+This is currently a very early work in progress and only a few games seems to run properly.
+
+Current state:
+
+  * Minimig based on [Minimig_ECS](https://github.com/emard/Minimig_ECS)
+  * Kick ROM stored in flash ROM
+  * 1MB chip and 0.5MB slow mem hard coded
+  * Two virtual floppy drives
+  * HDMI video and audio, PAL only
+  * Keyboard, Mouse and Joystick via USB
+
+## What's needed?
+
+  * ```nanomig.fs``` needs to be flashed to the FPGA's flash memory
+  * Kickstart 1.3 ```kick13.rom``` needs to be flashed at offset 0x400000 _and_ 0x440000
+  * The latest firmware needs to be flashed to the M0S Dock
+  * Default ADF disk images named ```df0.adf``` and ```df1.adf``` should be placed on SD card (e.g. workbench 1.3 and extras 1.3)
+
