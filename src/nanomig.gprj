@@ -53,6 +53,5 @@
         <File path="tang/nano20k/nanomig.sdc" type="file.sdc" enable="1"/>
         <File path="fx68k/microrom.mem" type="file.other" enable="1"/>
         <File path="fx68k/nanorom.mem" type="file.other" enable="1"/>
-        <File path="ram_test/ram_test.hex" type="file.other" enable="1"/>
     </FileList>
 </Project>
