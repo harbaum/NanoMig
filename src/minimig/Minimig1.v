@@ -454,7 +454,8 @@ Paula PAULA1
 );
 
 assign chipset_config = 4'b1000;   // ecs, a500 (!a1k), pal, unused    
-assign memory_config = 4'b0101;    // 1MB chip & 512k slow ram   
+// assign memory_config = 4'b0101;    // 1MB chip & 512k slow ram   
+assign memory_config = 4'b0011;    // 2MB chip
 assign floppy_config = 4'b0100;    // two floppy drives, unused, speed 0
    
 assign scanline = 1'b0;
@@ -463,18 +464,20 @@ assign scanline = 1'b0;
 parameter JOY0DAT = 9'h00a;
 parameter JOY1DAT = 9'h00c;
 parameter POTINP  = 9'h016;
-
+parameter POTGO   = 9'h034;
+   
 // mouse input gives quadrature signals
 reg [7:0] mouse_x;
 reg [7:0] mouse_y;
 
 reg [3:0] mouse_D;   // move events through two registers to
 reg [3:0] mouse_D2;  // bring into local clock domain
-   
+
 wire [1:0] mouse_en = {
 	    mouse_D[0] ^ mouse_D2[0] ^ mouse_D[1] ^ mouse_D2[1],
 	    mouse_D[2] ^ mouse_D2[2] ^ mouse_D[3] ^ mouse_D2[3]	    
-};   
+};
+   
 wire [1:0] mouse_dir = {
 	    mouse_D[0] ^ mouse_D2[1],
 	    mouse_D[2] ^ mouse_D2[3]	    
@@ -502,12 +505,22 @@ end
 
 wire [7:0] js_x = { 6'b000000, !n_joy2[0], n_joy2[2]^n_joy2[0] };
 wire [7:0] js_y = { 6'b000000, !n_joy2[1], n_joy2[3]^n_joy2[1] };
-  
+
+reg [15:0] potreg;
+   
+// POTGO register
+always @(posedge clk)
+  if(cpurst)
+    potreg <= 0;
+  else if (reg_address[8:1]==POTGO[8:1])
+    potreg <= custom_data_in;
+   
 assign user_data_out =
     (reg_address[8:1]==JOY0DAT[8:1])?{mouse_y,mouse_x}:
     (reg_address[8:1]==JOY1DAT[8:1])?{js_y,js_x}:
-    (reg_address[8:1]==POTINP[8:1])?{1'b0,n_joy2[5],3'b010,n_joy1[5]&!mouse[5],1'b0,1'b1/*third*/,8'b00000000}:
-        16'h00_00;
+    (reg_address[8:1]==POTINP[8:1])?
+       {1'b0,n_joy2[5]&potreg[14],1'b0,potreg[12]&1'b1,1'b0,potreg[10]&!mouse[5]&n_joy1[5],1'b0,potreg[8],8'b00000000}:
+    16'h00_00;
    
 // assign fire outputs to cia A
 assign _fire1 = n_joy2[4];

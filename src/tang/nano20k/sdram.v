@@ -24,9 +24,6 @@ module sdram (
 	output		  sd_clk, // sd clock
 	output		  sd_cke, // clock enable
 	inout reg [31:0]  sd_data, // 32 bit bidirectional data bus
-`ifdef VERILATOR
-	input [31:0]	  sd_data_in,
-`endif
 	output reg [12:0] sd_addr, // 11 bit multiplexed address bus
 	output     [3:0]  sd_dqm, // two byte masks
 	output reg [1:0]  sd_ba, // two banks
@@ -42,7 +39,7 @@ module sdram (
 	output		  ready, // ram is ready and has been initialized
 	input		  refresh, // chipset requests a refresh cycle
 	input [15:0]	  din, // data input from chipset/cpu
-	output reg [15:0] dout,
+	output [15:0]     dout,
 	input [21:0]	  addr, // 22 bit word address
 	input [1:0]	  ds, // upper/lower data strobe
 	input		  cs, // cpu/chipset requests read/wrie
@@ -107,6 +104,8 @@ assign sd_we  = sd_cmd[0];
 // drive data to SDRAM on write
 assign sd_data = we ? { din, din } : 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz;
 
+assign dout = addr[0]?sd_data[15:0]:sd_data[31:16];
+   
 // honour byte select on write. Always read all four bytes
 assign sd_dqm = !we?4'b0000:addr[0]?{2'b11,ds}:{ds,2'b11};
 
@@ -150,7 +149,8 @@ always @(posedge clk) begin
       
       // normal operation, start on ... 
       if(state == STATE_IDLE) begin
-        // ... rising edge of cs
+         // start a ram cycle at the rising edge of cs. In case of NanoMig
+	 // this is actually the rising edge of the 7Mhz clock
         if (csD && !csD2) begin
           if(!refresh) begin
             // RAS phase
@@ -177,13 +177,9 @@ always @(posedge clk) begin
             sd_cmd <= CMD_NOP;
       
         // read phase
-        if(state == STATE_READ /* && !we */) begin
-`ifdef VERILATOR
-            dout <= addr[0]?sd_data_in[15:0]:sd_data_in[31:16];
-`else
-            dout <= addr[0]?sd_data[15:0]:sd_data[31:16];
-`endif
-        end
+//        if(state == STATE_READ /* && !we */) begin
+//            dout <= addr[0]?sd_data[15:0]:sd_data[31:16];
+//        end
       end
    end
 end
