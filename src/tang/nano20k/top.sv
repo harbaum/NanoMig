@@ -210,13 +210,14 @@ wire [7:0] int_ack;
 wire hid_int;
 wire hid_iack = int_ack[1];
 wire sdc_iack = int_ack[3];
-wire [7:0] hid_joy0;   
+wire sdc_int;
+wire [7:0] hid_joy0;
    
 // keyboard and mouse interface to Minimig
-wire [5:0] mouse;  
+wire [5:0] mouse;
 wire       keystrobe;
 wire [7:0] keydat;
-wire       keyack;  
+wire       keyack;
 
 // signals to wire the floppy controller to the sd card
 wire [3:0]  sd_rd;
@@ -289,11 +290,11 @@ hid hid (
 
 		.clk7(clk_7m),
         .mouse(mouse),
-		 
+
         .keystrobe(keystrobe),
         .keydat(keydat),
         .keyack(keyack),
-		 
+
         .joystick0(hid_joy0),
         .joystick1()
          );   
@@ -340,11 +341,11 @@ osd_u8g2 osd_u8g2 (
 
         .hs(hs_n),
         .vs(vs_n),
-		     
+
         .r_in({red,   2'b00}),
         .g_in({green, 2'b00}),
         .b_in({blue,  2'b00}),
-		     
+
         .r_out(video_red),
         .g_out(video_green),
         .b_out(video_blue)
