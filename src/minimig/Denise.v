@@ -55,35 +55,47 @@
 // 2009-12-16	- added ECS enable input (only chip id is affected)
 // 2009-12-20	- DIWHIGH is written only in ECS mode
 // 2010-04-22	- ECS border blank implemented
+//
+// SB:
+// 2012-03-23	- fixed sprite enable signal (coppermaster demo)
+// 2013-10-19	- fixed self-made sprite collision bug. Now YQ100818 code is working again!
+//
+// Herzi
+// 2014-03-08	- fixed detect collisions
+//
+// SB:
+// 2014-04-12	- implemented sprite collision detection fix, developed by Yaqube. thanks a lot!
+//				- games Archon1, Rotor and Spaceport finally works normal
+// 2014-12-24	- finally fixed sprite enable/disable signal, no trashed pointer sprite at VDIWSTOP in More Lemmings
 
 module Denise
 (
-	input 	clk28m,					// 35ns pixel clock
-	input 	clk,		   			// bus clock / lores pixel clock
-	input 	c1 ,					// 35ns clock enable signals (for synchronization with clk)
-	input 	c3,
-	input 	cck,					// colour clock enable
-	input 	reset,					// reset
+	input	clk28m,					// 35ns pixel clock
+	input	clk,					// bus clock / lores pixel clock
+	input	c1,						// 35ns clock enable signals (for synchronization with clk)
+	input	c3,
+	input	cck,					// colour clock enable
+	input	reset,					// reset
 	input	strhor,					// horizontal strobe
-	input 	[8:1] reg_address_in,	// register adress inputs
-	input 	[15:0] data_in,			// bus data in
-	output 	[15:0] data_out,		// bus data out
+	input	[8:1] reg_address_in,	// register adress inputs
+	input	[15:0] data_in,			// bus data in
+	output	[15:0] data_out,		// bus data out
 	input	blank,					// blanking input
-	output 	[3:0] red, 				// red componenent video out
-	output 	[3:0] green,  			// green component video out
-	output 	[3:0] blue,				// blue component video out
+	output	[3:0] red,				// red componenent video out
+	output	[3:0] green,			// green component video out
+	output	[3:0] blue,				// blue component video out
 	input	ecs,					// enables ECS chipset features
 	input	a1k,					// control EHB chipset feature
 	output	reg hires				// hires
 );
 
-//register names and adresses		
+//register names and adresses
 parameter DIWSTRT  = 9'h08E;
 parameter DIWSTOP  = 9'h090;
 parameter DIWHIGH  = 9'h1E4;
-parameter BPLCON0  = 9'h100;  		
-parameter BPLCON2  = 9'h104; 
-parameter BPLCON3  = 9'h106; 
+parameter BPLCON0  = 9'h100;
+parameter BPLCON2  = 9'h104;
+parameter BPLCON3  = 9'h106;
 parameter DENISEID = 9'h07C;
 parameter BPL1DAT  = 9'h110;
 
@@ -116,10 +128,10 @@ wire	[11:0] clut_rgb;		// colour table rgb data out
 wire	[11:0] out_rgb;			// final multiplexer rgb output data
 reg		window;					// window enable signal
 
-wire	[15:0] deniseid_out; 	// deniseid data_out
+wire	[15:0] deniseid_out;	// deniseid data_out
 wire	[15:0] col_out;			// colision detection data_out
 
-reg		display_ena;					// in OCS sprites are visible between first write to BPL1DAT and end of scanline
+reg		display_ena;			// in OCS sprites are visible between first write to BPL1DAT and end of scanline
 
 //--------------------------------------------------------------------------------------
 
@@ -131,15 +143,16 @@ assign data_out = col_out | deniseid_out;
 // Denise horizontal counter counting range: $01-$E3 CCKs (2-455 lores pixels)
 always @(posedge clk)
 	if (strhor)
-		hpos <= 2;
+		hpos <= 9'd2;
 	else
-		hpos <= hpos + 1;
+		hpos <= hpos + 9'd1;
 
 //--------------------------------------------------------------------------------------
 
 // sprite display enable signal - sprites are visible after the first write to the BPL1DAT register in a scanline
 always @(posedge clk)
-	if (reset || strhor)
+	if (reset || hpos[8:0]==8)
+//	if (reset || blank)
 		display_ena <= 0;
 	else if (reg_address_in[8:1]==BPL1DAT[8:1])
 		display_ena <= 1;
@@ -185,9 +198,9 @@ always @(posedge clk)
 		bplcon3[15:0] <= data_in[15:0];
 
 assign brdrblnk = bplcon3[5];
-		
+
 // DIWSTART and DIWSTOP registers (vertical and horizontal limits of display window)
-	
+
 // HDIWSTRT
 always @(posedge clk)
 	if (reg_address_in[8:1]==DIWSTRT[8:1])
@@ -222,14 +235,14 @@ always @(posedge clk)
 	else if (hpos[8:0]==hdiwstop[8:0])
 		window <= 0;
 
-reg window_ena;		
+reg window_ena;
 always @(posedge clk)
 	window_ena <= window;
-	
+
 //--------------------------------------------------------------------------------------
 
 // instantiate bitplane module
-bitplanes bplm0 
+bitplanes bplm0
 (
 	.clk(clk),
 	.clk28m(clk28m),
@@ -240,7 +253,7 @@ bitplanes bplm0
 	.hires(hires),
 	.shres(shres & ecs),
 	.hpos(hpos),
-	.bpldata(bpldata_out)	
+	.bpldata(bpldata_out)
 );
 
 assign bpldata[1] = l_bpu > 0 ? bpldata_out[1] : 1'b0;
@@ -257,7 +270,7 @@ playfields plfm0
 	.dblpf(dblpf),
 	.bplcon2(bplcon2[6:0]),
 	.nplayfield(nplayfield),
-	.plfdata(plfdata)	
+	.plfdata(plfdata)
 );
 
 // instantiate sprite module
@@ -265,13 +278,12 @@ sprites sprm0
 (
 	.clk(clk),
 	.reset(reset),
-	.ecs(1'b0),
 	.reg_address_in(reg_address_in),
 	.hpos(hpos),
 	.data_in(data_in),
 	.sprena(display_ena),
 	.nsprite(nsprite),
-	.sprdata(sprdata)	
+	.sprdata(sprdata)
 );
 
 // instantiate video priority logic module
@@ -280,7 +292,7 @@ sprpriority spm0
 	.bplcon2(bplcon2[5:0]),
 	.nplayfield(nplayfield),
 	.nsprite(nsprite),
-	.sprsel(sprsel)	
+	.sprsel(sprsel)
 );
 
 // instantiate colour look up table
@@ -303,7 +315,7 @@ hamgenerator ham0
 	.reg_address_in(reg_address_in),
 	.data_in(data_in[11:0]),
 	.bpldata(bpldata),
-	.rgb(ham_rgb)		
+	.rgb(ham_rgb)
 );
 
 // instantiate collision detection module
@@ -314,8 +326,9 @@ collision col0
 	.reg_address_in(reg_address_in),
 	.data_in(data_in),
 	.data_out(col_out),
+	.dblpf(dblpf),
 	.bpldata(bpldata),
-	.nsprite(nsprite)	
+	.nsprite(nsprite)
 );
 
 //--------------------------------------------------------------------------------------
@@ -364,17 +377,17 @@ endmodule
 
 module colortable
 (
-	input 	clk,		   			// bus clock / lores pixel clock
+	input	clk,					// bus clock / lores pixel clock
 	input	clk28m,					// 35ns pixel clock
-	input 	[8:1] reg_address_in,	// register adress inputs
-	input 	[11:0] data_in,			// bus data in
+	input	[8:1] reg_address_in,	// register adress inputs
+	input	[11:0] data_in,			// bus data in
 	input	[5:0] select,			// colour select input
-	input	a1k,							// EHB control
+	input	a1k,					// EHB control
 	output	reg [11:0] rgb			// RGB output
 );
 
-// register names and adresses		
-parameter COLORBASE = 9'h180;  		// colour table base address
+// register names and adresses
+parameter COLORBASE = 9'h180;		// colour table base address
 
 // local signals
 reg 	[11:0] colortable [31:0];	// colour table
@@ -403,10 +416,11 @@ endmodule
 // sprite priority logic module
 // this module checks the playfields and sprites video status and
 // determines if playfield or sprite data must be sent to the video output
-// sprite/playfield priority is configurable through the bplcon2 bits				
+// sprite/playfield priority is configurable through the bplcon2 bits
+
 module sprpriority
 (
-	input 	[5:0] bplcon2,		   	// playfields vs sprites priority setting
+	input	[5:0] bplcon2,			// playfields vs sprites priority setting
 	input	[2:1] nplayfield,		// playfields video status
 	input	[7:0] nsprite,			// sprites video status
 	output	reg sprsel				// sprites select signal output
@@ -419,39 +433,39 @@ wire	pf1front;				// playfield 1 is on front of sprites
 wire	pf2front;				// playfield 2 is on front of sprites
 
 // group sprites together
-assign	sprgroup[0] = (nsprite[1:0]==0) ? 0 : 1;
-assign	sprgroup[1] = (nsprite[3:2]==0) ? 0 : 1;
-assign	sprgroup[2] = (nsprite[5:4]==0) ? 0 : 1;
-assign	sprgroup[3] = (nsprite[7:6]==0) ? 0 : 1;
+assign	sprgroup[0] = (nsprite[1:0]==2'd0) ? 1'b0 : 1'b1;
+assign	sprgroup[1] = (nsprite[3:2]==2'd0) ? 1'b0 : 1'b1;
+assign	sprgroup[2] = (nsprite[5:4]==2'd0) ? 1'b0 : 1'b1;
+assign	sprgroup[3] = (nsprite[7:6]==2'd0) ? 1'b0 : 1'b1;
 
 // sprites priority encoder
 always @(sprgroup)
 	if (sprgroup[0])
-		sprcode = 1;
+		sprcode = 3'd1;
 	else if (sprgroup[1])
-		sprcode = 2;
+		sprcode = 3'd2;
 	else if (sprgroup[2])
-		sprcode = 3;
+		sprcode = 3'd3;
 	else if (sprgroup[3])
-		sprcode = 4;
+		sprcode = 3'd4;
 	else
-		sprcode = 7;
+		sprcode = 3'd7;
 
 // check if playfields are in front of sprites
-assign pf1front = sprcode[2:0]>bplcon2[2:0] ? 1 : 0;
-assign pf2front = sprcode[2:0]>bplcon2[5:3] ? 1 : 0;
+assign pf1front = sprcode[2:0]>bplcon2[2:0] ? 1'b1 : 1'b0;
+assign pf2front = sprcode[2:0]>bplcon2[5:3] ? 1'b1 : 1'b0;
 
 // generate final playfield/sprite select signal
 always @(sprcode or pf1front or pf2front or nplayfield)
 begin
-	if (sprcode[2:0]==7) // if no valid sprite data, always select playfields
-		sprsel = 0;
+	if (sprcode[2:0]==3'd7) // if no valid sprite data, always select playfields
+		sprsel = 1'b0;
 	else if (pf1front && nplayfield[1]) // else if pf1 in front and valid data, select playfields
-		sprsel = 0;
+		sprsel = 1'b0;
 	else if (pf2front && nplayfield[2]) // else if pf2 in front and valid data, select playfields
-		sprsel = 0;	 
+		sprsel = 1'b0;
 	else // else select sprites
-		sprsel = 1;
+		sprsel = 1'b1;
 end
 
 endmodule
@@ -464,16 +478,16 @@ endmodule
 // the sprites run simultanously with a HAM playfield
 module hamgenerator
 (
-	input 	clk,		   			// bus clock
+	input	clk,					// bus clock
 	input	clk28m,					// 35ns pixel clock
-	input 	[8:1] reg_address_in,	// register adress inputs
-	input 	[11:0] data_in,			// bus data in
+	input	[8:1] reg_address_in,	// register adress inputs
+	input	[11:0] data_in,			// bus data in
 	input	[5:0] bpldata,			// bitplane data input
 	output	reg [11:0] rgb			// RGB output
 );
 
-//register names and adresses		
-parameter COLORBASE = 9'h180;  		// colour table base address
+//register names and adresses
+parameter COLORBASE = 9'h180;		// colour table base address
 
 //local signals
 reg 	[11:0] colortable [15:0];	// colour table
@@ -487,7 +501,7 @@ always @(posedge clk)
 		colortable[reg_address_in[4:1]] <= data_in[11:0];
 
 //reading of colour table
-assign selcolor = colortable[bpldata[3:0]];   
+assign selcolor = colortable[bpldata[3:0]];
 
 //--------------------------------------------------------------------------------------
 
@@ -495,7 +509,7 @@ assign selcolor = colortable[bpldata[3:0]];
 always @(posedge clk28m)
 begin
 	case (bpldata[5:4])
-		2'b00://load rgb output with colour from table	
+		2'b00://load rgb output with colour from table
 			rgb <= selcolor;
 		2'b01://hold green and red, modify blue
 			rgb  <= {rgb[11:4],bpldata[3:0]};	
@@ -514,16 +528,17 @@ endmodule
 //this is the collision detection module
 module collision
 (
-	input 	clk,					//bus clock / lores pixel clock
+	input	clk,					//bus clock / lores pixel clock
 	input	reset,					//reset
-	input 	[8:1] reg_address_in,	//register adress inputs
-	input 	[15:0] data_in,			//bus data in
+	input	[8:1] reg_address_in,	//register adress inputs
+	input	[15:0] data_in,			//bus data in
 	output	[15:0] data_out,		//bus data out
+	input	dblpf,					//dual playfield signal, required to support undocumented feature
 	input	[5:0] bpldata,			//bitplane serial video data in
-	input	[7:0] nsprite	
+	input	[7:0] nsprite
 );
 
-//register names and adresses		
+//register names and adresses
 parameter CLXCON = 9'h098;
 parameter CLXDAT = 9'h00E;
 
@@ -549,7 +564,12 @@ always @(posedge clk)
 wire [5:0] bm;
 assign bm = (bpldata[5:0] ^ ~clxcon[5:0]) | (~clxcon[11:6]); // JB: playfield collision detection fix
 
-assign oddmatch = bm[4] & bm[2] & bm[0];
+// this is the implementation of an undocumented function in the real Denise chip, developed by Yaqube.
+// trigger was the game Rotor. mentioned in WinUAE sources to be the only known game needing this feature.
+// it also fixes the Spaceport instandly helicopter crash at takeoff
+// and Archon-1 'sticky effect' of player sprite at the battlefield.
+// the OCS mystery is cleaning up :)
+assign oddmatch = bm[4] & bm[2] & bm[0] & (dblpf | evenmatch);
 assign evenmatch = bm[5] & bm[3] & bm[1];
 
 //generate sprite group match signal
@@ -562,6 +582,7 @@ assign sprmatch[3] = nsprite[6] | (nsprite[7] & clxcon[15]);
 
 //detect collisions
 wire [14:0] cl;
+reg clxdat_read_del;
 
 assign cl[0]  = evenmatch   & oddmatch;		//odd to even bitplanes
 assign cl[1]  = oddmatch    & sprmatch[0];	//odd bitplanes to sprite 0(or 1)
@@ -579,9 +600,15 @@ assign cl[12] = sprmatch[1] & sprmatch[2];	//sprite 2(or 3) to sprite 4(or 5)
 assign cl[13] = sprmatch[1] & sprmatch[3];	//sprite 2(or 3) to sprite 6(or 7)
 assign cl[14] = sprmatch[2] & sprmatch[3];	//sprite 4(or 5) to sprite 6(or 7)
 
+wire clxdat_read = (reg_address_in[8:1]==CLXDAT[8:1]);// clxdat read
+
+always @(posedge clk)
+	clxdat_read_del <= clxdat_read;  
+
 //register detected collisions
 always @(posedge clk)
-	if (reg_address_in[8:1]==CLXDAT[8:1]) //if clxdat is read, clxdat is cleared to all zero's
+//	if (reg_address_in[8:1]==CLXDAT[8:1]) //if clxdat is read, clxdat is cleared to all zero's
+	if (!clxdat_read & clxdat_read_del)	//if clxdat is read, clxdat is cleared to all zero's after read
 		clxdat <= 0;
 	else //else register collisions
 		clxdat <= clxdat[14:0] | cl[14:0];
@@ -589,6 +616,6 @@ always @(posedge clk)
 //--------------------------------------------------------------------------------------
 
 //reading of clxdat register
-assign data_out = reg_address_in[8:1]==CLXDAT[8:1] ? {1'b1,clxdat[14:0]} : 0;
+assign data_out = reg_address_in[8:1]==CLXDAT[8:1] ? {1'b1,clxdat[14:0]} : 16'd0;
 
 endmodule
