@@ -313,8 +313,6 @@ wire		_wprot;				// disk is write-protected
 
 wire	bls;			// blitter slowdown - required for sharing bus cycles between Blitter and CPU
 
-wire	ovr;			// overide chip memmory decoding
-
 wire	[1:0] lr_filter = 2'b00;// lowres interpolation filter mode: bit 0 - horizontal, bit 1 - vertical
 wire	[1:0] hr_filter = 2'b00;// hires interpolation filter mode: bit 0 - horizontal, bit 1 - vertical
 wire	[1:0] scanline;		// scanline effect configuration
@@ -355,9 +353,6 @@ always @(posedge clk)
 always @(posedge clk)
 	if (~_vsync_i && vsync_del)
 		vsync_t <= (~vsync_t);
-
-// Disabled Action Replay
-assign ovr=1'b0;
 
 //--------------------------------------------------------------------------------------
 
@@ -652,7 +647,7 @@ m68k_bridge CPU1
 // instantiate RAM banks mapper
 bank_mapper BMAP1
 (
-	.chip0((~ovr|~cpu_rd|dbr) & sel_chip[0]),
+	.chip0(sel_chip[0]),
 	.chip1(sel_chip[1]),
 	.chip2(sel_chip[2]),
 	.chip3(sel_chip[3]),	
@@ -977,8 +972,7 @@ assign data_out = wrdata;
 //always @(clk or data_in)
 //	if (!clk)
 //		ldata_in <= data_in;
-always @(posedge clk)
-  ldata_in <= data_in;
+always @(posedge clk) ldata_in <= data_in;
   
 // ----------------------------------------------------------------------------------------------------------------------------------------------------- //
 

@@ -17,7 +17,9 @@
  + check why floppy sometimes hangs on boot
  - check/fix turbo floppy
  + check why mouse counters sometimes go mad
- - get phi/reset working
+ + get phi/reset working
+ - make Minimig use gated 28Mhz
+ - use unified mouse counter
  
  CHANGES:
  - remove userio
@@ -461,14 +463,16 @@ reg  phi1, phi2;
 always @(posedge clk_28m) begin
    phi1 <= 0;
    phi2 <= 0;
-   if(~clk_cnt[0] && ~clk_cnt[1]) phi1 <= 1;   
-   if(~clk_cnt[0] &&  clk_cnt[1]) phi2 <= 1;
+//   if(~clk_cnt[0] && ~clk_cnt[1]) phi1 <= 1;   
+//   if(~clk_cnt[0] &&  clk_cnt[1]) phi2 <= 1;
+   if(clk_cnt[0] &&  clk_cnt[1]) phi1 <= 1;   
+   if(clk_cnt[0] && ~clk_cnt[1]) phi2 <= 1;
 end
 
 fx68k fx68k (
 	  // negative clock to run the CPU away from the 7mhz clock edges the chipset runs
 	  // on. The chipset should be moved onto a gated 28Mhz clock to solve this nicely ...
-     .clk        ( !clk_28m    ),
+     .clk        ( clk_28m    ),
      .extReset   ( cpu_reset   ),
      .pwrUp      ( reset       ),
      .enPhi1     ( phi1        ),

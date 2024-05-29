@@ -633,8 +633,6 @@ reg 	  fifo_is_writing;
    
 always @(posedge clk) begin
    if(dskstate == DISKDMA_IDLE) begin
-      // make sure read and write engines agree on first sector
-      fifo_sector_counter <= fd_dma_wr_sec;
       fifo_word_counter <= 10'd0;
       fifo_wait4sector <= 1'b1;	 
       fifo_is_writing <= 1'b0;	 
@@ -644,12 +642,16 @@ always @(posedge clk) begin
 	fifo_is_writing <= 1'b0;	 
 	if(fd_dma_sector_ready)
 	   fifo_wait4sector <= 1'b0;	   
-      end else if((!trackrdok || fifo_wr) && !lenzero) begin	 
+      end else if((!trackrdok || fifo_wr) && !lenzero) begin
+	 // make sure read and write engines agree on first sector
+	 if(!fifo_is_writing)
+	   fifo_sector_counter <= fd_dma_wr_sec;
+	 
 	 fifo_is_writing <= 1'b1;  // inform sector buffer that data is being written
 	 
 	 // a MFM encoded sector incl. header is 544 words
 	 if(fifo_sector_counter != 4'd11 && fifo_word_counter == 10'd543) begin
-	    fifo_word_counter <= 10'd0;	    
+	    fifo_word_counter <= 10'd0;
 	    fifo_sector_counter <= fifo_sector_counter + 4'd1;
 	    
 	    // request next sector to be buffered (unless the gap is next to be sent)
