@@ -151,8 +151,6 @@ module floppy
 	// JB:
 	wire	fifo_reset;
 	reg		dmaen;					//dsklen dma enable
-	reg		[15:0] wr_fifo_status;
-	
 	reg		[3:0] disk_present;		//disk present status
 	reg		[3:0] disk_writable;	//disk write access status
 	
@@ -350,7 +348,7 @@ assign buswr = (reg_address_in[8:1]==DSKDAT[8:1]) ? 1 : 0;
 assign fifo_in[15:0] = floppy_data; // needed for write: trackrd ? floppy_data : data_in[15:0];
 
 //fifo write control
-   assign fifo_wr = (trackrdok & !fifo_wait4sector & !fifo_full & ~lenzero); // TODO: needed for write | (buswr & dmaon);
+assign fifo_wr = (trackrdok & fifo_reading_sector & !fifo_full & ~lenzero); // TODO: needed for write | (buswr & dmaon);
 
 //delayed version to allow writing of the last word to empty fifo
 always @(posedge clk)
@@ -361,7 +359,7 @@ assign fifo_rd = (busrd & dmaon) | (trackwr /* & spidat */ );
 
 //DSKSYNC interrupt
 wire sync_match;
-assign sync_match = dsksync[15:0]==floppy_data && trackrd ? 1'b1 : 1'b0;
+assign sync_match = dsksync[15:0]==floppy_data  && fifo_reading_sector && trackrd ? 1'b1 : 1'b0;
 
 assign syncint = sync_match | ~dmaen & |(~_sel & motor_on & disk_present) & sof;
 
@@ -530,7 +528,7 @@ always @(posedge clk28m) begin
 	     fd_dma_buf_wr_state <= 4'd0;
 	   else begin
 	      // check if fifo is done reading
-	      if(fifo_wait4sector && !sdc_busy) begin
+	      if(!fifo_reading_sector && !sdc_busy) begin
 		 // reset checksum of next sector
 		 fd_dma_csum[0] <= 8'd0;      
 		 fd_dma_csum[1] <= 8'd0;      
@@ -628,20 +626,20 @@ wire [15:0] floppy_sector_data =
    
 reg [3:0] fifo_sector_counter;   // sector being written into fifo
 reg [9:0] fifo_word_counter;     // sector word being written into fifo
-reg 	  fifo_wait4sector;      
+reg 	  fifo_reading_sector;      
 reg 	  fifo_is_writing;   
    
 always @(posedge clk) begin
    if(dskstate == DISKDMA_IDLE) begin
       fifo_word_counter <= 10'd0;
-      fifo_wait4sector <= 1'b1;	 
+      fifo_reading_sector <= 1'b0;	 
       fifo_is_writing <= 1'b0;	 
    end else begin
       // start filling fifo once sector buffer has been filled
-      if(fifo_wait4sector) begin
+      if(!fifo_reading_sector) begin
 	fifo_is_writing <= 1'b0;	 
 	if(fd_dma_sector_ready)
-	   fifo_wait4sector <= 1'b0;	   
+	   fifo_reading_sector <= 1'b1;	   
       end else if((!trackrdok || fifo_wr) && !lenzero) begin
 	 // make sure read and write engines agree on first sector
 	 if(!fifo_is_writing)
@@ -656,13 +654,13 @@ always @(posedge clk) begin
 	    
 	    // request next sector to be buffered (unless the gap is next to be sent)
 	    if(fifo_sector_counter != 4'd10)
-	      fifo_wait4sector <= 1'b1;
+	      fifo_reading_sector <= 1'b0;
 	    
 	 end else if(fifo_sector_counter == 4'd11 && fifo_word_counter == 10'd349) begin
 	    // the gap after sector 11 is 700 bytes/350 words
 	    fifo_word_counter <= 10'd0;	    
 	    fifo_sector_counter <= 4'd0;
-	    fifo_wait4sector <= 1'b1;
+	    fifo_reading_sector <= 1'b0;
 	 end else
 	   fifo_word_counter <= fifo_word_counter + 10'd1;
       end else if(lenzero)

@@ -1247,7 +1247,7 @@ parameter DSKDATR = 9'h008;
 
 //local signals
 wire	[20:1] address_outnew;	//new disk dma pointer
-reg		dmaslot;				//indicates if the current slot can be used to transfer data
+reg		dmaslot;	//indicates if the current slot can be used to transfer data
 
 //--------------------------------------------------------------------------------------
 
@@ -1268,7 +1268,7 @@ always @(hpos or speed)
 	endcase
 
 //dma request
-assign dma = dmal & dmaslot & ~speed & hpos[0];
+assign dma = dmal & dmaslot & hpos[0];
 //write signal
 assign wr = ~dmas;
 

@@ -451,7 +451,7 @@ Paula PAULA1
 assign chipset_config = 4'b1000;   // ecs, a500 (!a1k), pal, unused    
 // assign memory_config = 4'b0101;    // 1MB chip & 512k slow ram   
 assign memory_config = 4'b0011;    // 2MB chip
-assign floppy_config = 4'b0100;    // two floppy drives, unused, speed 0
+assign floppy_config = 4'b0101;    // two floppy drives, unused, speed 0
    
 assign scanline = 1'b0;
 
