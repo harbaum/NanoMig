@@ -348,7 +348,7 @@ assign buswr = (reg_address_in[8:1]==DSKDAT[8:1]) ? 1 : 0;
 assign fifo_in[15:0] = floppy_data; // needed for write: trackrd ? floppy_data : data_in[15:0];
 
 //fifo write control
-assign fifo_wr = (trackrdok & fifo_reading_sector & ~lenzero); // TODO: needed for write | (buswr & dmaon);
+assign fifo_wr = (trackrdok & fifo_reading_sector & !fifo_full & ~lenzero); // TODO: needed for write | (buswr & dmaon);
 
 //delayed version to allow writing of the last word to empty fifo
 always @(posedge clk)
