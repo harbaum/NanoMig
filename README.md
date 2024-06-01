@@ -10,9 +10,9 @@ Current state:
 
   * Minimig based on [Minimig_ECS](https://github.com/emard/Minimig_ECS)
   * Kick ROM stored in flash ROM
-  * 1MB chip and 0.5MB slow mem hard coded
-  * Two virtual floppy drives
-  * HDMI video and audio, PAL only
+  * Up to 2MB chip and 1.5MB slow RAM
+  * Up to four virtual floppy drives
+  * HDMI video and audio, PAL and NTSC
   * Keyboard, Mouse and Joystick via USB
 
 ## Videos
@@ -31,5 +31,4 @@ The necessary binaries can be found in the [project releases](https://github.com
   * ```nanomig.fs``` needs to be flashed to the FPGA's flash memory
   * Kickstart 1.3 ```kick13.rom``` needs to be flashed at offset 0x400000 _and_ 0x440000
   * The latest firmware needs to be flashed to the M0S Dock
-  * Default ADF disk images named ```df0.adf``` and ```df1.adf``` should be placed on SD card (e.g. workbench 1.3 and extras 1.3)
-
+  * A default ADF disk images named ```df0.adf``` should be placed on SD card (e.g. workbench 1.3)
