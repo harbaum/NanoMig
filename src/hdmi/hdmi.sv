@@ -33,17 +33,19 @@ module hdmi
     parameter bit [7:0] SOURCE_DEVICE_INFORMATION = 8'h00 // See README.md or CTA-861-G for the list of valid codes
 )
 (
-    input logic			      clk_pixel_x5,
-    input logic			      clk_pixel,
-    input logic			      clk_audio,
+    input logic 		      clk_pixel_x5,
+    input logic 		      clk_pixel,
+    input logic 		      clk_audio,
+
+    input logic                       pal_mode,   // 1 for pal timing
     // synchronous reset back to 0,0
-    input logic			      reset,
-    input logic [23:0]		      rgb, 
+    input logic 		      reset,
+    input logic [23:0] 		      rgb, 
     input logic [AUDIO_BIT_WIDTH-1:0] audio_sample_word [1:0],
 
     // These outputs go to your HDMI port
-    output logic [2:0]		      tmds,
-    output logic		      tmds_clock
+    output logic [2:0] 		      tmds,
+    output logic 		      tmds_clock
 );
 
 localparam int NUM_CHANNELS = 3;
@@ -52,15 +54,15 @@ logic vsync;
 
 logic [1:0] invert;
 
-// PAL                    start     frame   screen s_start   s_len
+// PAL/NTSC               start     frame   screen s_start   s_len
 wire [54:0] htiming0  = { 11'd0,   11'd908, 11'd768, 11'd24, 11'd72 };  
-wire [39:0] vtiming0  = {          10'd626, 10'd576,  10'd5,  10'd5 };
+wire [39:0] vtiming0  = {          10'd626, 10'd576,  10'd5,  10'd5 }; // PAL
+wire [39:0] vtiming1  = {          10'd526, 10'd480,  10'd5,  10'd5 }; // NTSC
 wire [7:0] cea0 = 8'd17; // CEA is HDMI mode in group 1
+wire [7:0] cea1 = 8'd2;
    
-wire [102:0]  timing0 = {  htiming0, vtiming0, cea0 };
-
-// select timing as indicated by control signals coming for Atari ST core
-wire [102:0] timing = timing0;
+wire [102:0]  timing = pal_mode?{  htiming0, vtiming0, cea0 }:
+                                {  htiming0, vtiming1, cea1 };
 
 // demux timing parameters   
 wire [10:0] start_x           = timing[102:92];

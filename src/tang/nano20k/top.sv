@@ -20,6 +20,8 @@
  + get phi/reset working
  - make Minimig use gated 28Mhz
  - use unified mouse counter
+ - reduce mouse event speed
+ + implement NTSC
  
  CHANGES:
  - remove userio
@@ -102,7 +104,8 @@ module top(
 
 wire [5:0]	leds;
    
-assign leds[5] = 1'b0;
+assign leds[5:4] = 2'b00;
+assign leds[3] = |sd_rd;
 assign leds_n = ~leds;  
 
 // ============================== clock generation ===========================
@@ -381,6 +384,18 @@ wire [15:0] sdram_dout;
 // TODO: latch data 
 assign ram_din = sdram_dout;
 
+wire [1:0] osd_chipmem = 2'd0;  // 512k chip (0=512k, 1=1M, 2=1.5M, 3=2M)
+wire [1:0] osd_slowmem = 2'd1;  // 512k slow (0=None, 1=512k, 2=1M, 3=1.5M)
+wire [1:0] osd_floppies = 2'd0; // one floppy drive
+wire       osd_fturbo = 1'd1;   // floppy turbo on
+wire [1:0] osd_chipset = 2'd2;  // 0=OCS-A500, 1=OCS-A1000, 2=ECS
+wire       osd_video = 1'd0;    // PAL (0=PAL, 1=NTSC)
+
+// pack config values into minimig config
+wire [2:0] chipset_config = { osd_chipset,osd_video };
+wire [3:0] memory_config = { osd_slowmem, osd_chipmem };   
+wire [2:0] floppy_config = { osd_floppies, osd_fturbo };
+   
 Minimig1 MINIMIG1 
 (
    // m68k pins
@@ -408,6 +423,11 @@ Minimig1 MINIMIG1
    .clk(clk_7m),      // system clock (7.09379 MHz)
    .clk28m(clk_28m),  // 28.37516 MHz clock
 
+   // system configuration
+   .chipset_config(3'b100),   // ecs, a500 (!a1k), pal
+   .memory_config(4'b0100),   // 512k chip + 512k slow
+   .floppy_config(3'b011),    // two floppy drives, unused, speed 0
+ 
    // rs232 pins are connected to the pins used for MIDI on Atari ST
    // connecting a USB UART adapter here allows to e.g. control DiagROM from a PC
    .rxd(midi_in),     // rs232 receive
@@ -538,8 +558,6 @@ wire        flash_busy;
 // once the copy counter has run to zero, all rom has been copied
 wire		rom_done = (word_count == 0);
 
-assign leds[4] = !pll_lock;   
-assign leds[3] = !mem_ready;  
 assign leds[2] = !rom_done;  
    
 reg [21:0]  flash_ram_addr;   
@@ -690,11 +708,12 @@ end
 wire [2:0] tmds;
 wire tmds_clock;
 
-wire vreset;
+wire vreset, vpal;
 video_analyzer video_analyzer (
     .clk    ( clk_28m ),
     .hs     ( hs_n    ),
     .vs     ( vs_n    ),
+    .pal    ( vpal    ),
     .vreset ( vreset  )
 );
    
@@ -710,6 +729,7 @@ hdmi #(
   .tmds(tmds),
   .tmds_clock(tmds_clock),
 
+  .pal_mode(vpal),
   .reset(vreset),    // signal to synchronize HDMI
 
   .rgb( { video_red, 2'b00, video_green, 2'b00, video_blue, 2'b00 } )

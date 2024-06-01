@@ -164,6 +164,11 @@ module Minimig1
 	input 	      clk, // system clock (7.09379 MHz)
 	input 	      clk28m, // 28.37516 MHz clock
 
+        // system configuration options
+        input [2:0]   chipset_config,
+        input [3:0]   memory_config,
+        input [2:0]   floppy_config,
+
 	// rs232 pins
 	input 	      rxd, // rs232 receive
 	output 	      txd, // rs232 send
@@ -317,9 +322,6 @@ wire	[1:0] lr_filter = 2'b00;// lowres interpolation filter mode: bit 0 - horizo
 wire	[1:0] hr_filter = 2'b00;// hires interpolation filter mode: bit 0 - horizontal, bit 1 - vertical
 wire	[1:0] scanline;		// scanline effect configuration
 wire	hires;			// hires signal from Denise for interpolation filter enable in Amber
-wire	[3:0] memory_config;	// memory configuration
-wire	[3:0] floppy_config;	// floppy drives configuration (drive number and speed)
-wire	[3:0] chipset_config;	// chipset features selection
 
 // gayle stuff
 wire	sel_ide;		// select IDE drive registers
@@ -341,7 +343,7 @@ assign pwrled = !_led;
 // NTSC/PAL switching is controlled by OSD menu, change requires reset to take effect
 always @(posedge clk)
 	if (cpurst)
-		ntsc <= (chipset_config[1]);
+		ntsc <= (chipset_config[0]);
 
 // vertical sync for the MCU
 reg vsync_del = 1'b0; 	// delayed vsync signal for edge detection
@@ -391,8 +393,8 @@ Agnus AGNUS1
 	.disk_dmas(disk_dmas),
 	.bls(bls),
 	.ntsc(ntsc),
-	.a1k(chipset_config[2]),
-	.ecs(chipset_config[3]),
+	.a1k(chipset_config[1]),
+	.ecs(chipset_config[2]),
 	.floppy_speed(floppy_config[0])
 );
 
@@ -445,15 +447,10 @@ Paula PAULA1
 	.sdc_byte_in_addr(sdc_byte_in_addr),
 	.sdc_byte_in_data(sdc_byte_in_data),
  
-	.floppy_drives(floppy_config[3:2])
+	.floppy_drives(floppy_config[2:1])
 );
 
-assign chipset_config = 4'b1000;   // ecs, a500 (!a1k), pal, unused    
-// assign memory_config = 4'b0101;    // 1MB chip & 512k slow ram   
-assign memory_config = 4'b0011;    // 2MB chip
-assign floppy_config = 4'b0101;    // two floppy drives, unused, speed 0
-   
-assign scanline = 1'b0;
+assign scanline = 2'b00;
 
 // ----------------------- simple replacement for user_io hw registers --------------------
 parameter JOY0DAT = 9'h00a;
@@ -538,8 +535,8 @@ Denise DENISE1
 	.red(red_i),
 	.green(green_i),
 	.blue(blue_i),
-	.ecs(chipset_config[3]),
-	.a1k(chipset_config[2]),
+	.ecs(chipset_config[2]),
+	.a1k(chipset_config[1]),
 	.hires(hires)
 );
 
@@ -655,7 +652,7 @@ bank_mapper BMAP1
 	.slow1(sel_slow[1]),
 	.slow2(sel_slow[2]),
 	.kick(sel_kick),
-	.ecs(chipset_config[3]),
+	.ecs(chipset_config[2]),
 	.memory_config(memory_config),
 	.bank(bank)
 );
@@ -696,7 +693,7 @@ gary GARY1
 	.ram_rd(ram_rd),
 	.ram_hwr(ram_hwr),
 	.ram_lwr(ram_lwr),
-	.ecs(chipset_config[3]),
+	.ecs(chipset_config[2]),
 	.sel_chip(sel_chip),
 	.sel_slow(sel_slow),
 	.sel_kick(sel_kick),
