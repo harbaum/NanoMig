@@ -154,7 +154,7 @@ module Minimig1
 	// sram pins
 	output [15:0] ram_data, // sram data bus
 	output [18:1] ram_address_out, // sram address bus
-        output [7:0]  bank,		// memory bank select
+        output [7:0]  bank, // memory bank select
 	output 	      n_ram_bhe, // sram upper byte select
 	output 	      n_ram_ble, // sram lower byte select
 	output 	      n_ram_we, // sram write enable
@@ -168,6 +168,9 @@ module Minimig1
         input [2:0]   chipset_config,
         input [3:0]   memory_config,
         input [2:0]   floppy_config,
+        input [1:0]   video_lr_filter,
+        input [1:0]   video_hr_filter,
+	input [1:0]   video_scanlines,
 
 	// rs232 pins
 	input 	      rxd, // rs232 receive
@@ -318,9 +321,6 @@ wire		_wprot;				// disk is write-protected
 
 wire	bls;			// blitter slowdown - required for sharing bus cycles between Blitter and CPU
 
-wire	[1:0] lr_filter = 2'b00;// lowres interpolation filter mode: bit 0 - horizontal, bit 1 - vertical
-wire	[1:0] hr_filter = 2'b00;// hires interpolation filter mode: bit 0 - horizontal, bit 1 - vertical
-wire	[1:0] scanline;		// scanline effect configuration
 wire	hires;			// hires signal from Denise for interpolation filter enable in Amber
 
 // gayle stuff
@@ -545,9 +545,9 @@ Amber AMBER1
 (		
 	.clk28m(clk28m),
 	.dblscan(n_15khz),
-	.lr_filter(lr_filter),
-	.hr_filter(hr_filter),
-	.scanline(scanline),
+	.lr_filter(video_lr_filter),
+	.hr_filter(video_hr_filter),
+	.scanline(video_scanlines),
 	.htotal(htotal),
 	.hires(hires),
 	.red_in(red_i),
