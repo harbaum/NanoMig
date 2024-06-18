@@ -32,3 +32,4 @@ The necessary binaries can be found in the [project releases](https://github.com
   * Kickstart 1.3 ```kick13.rom``` needs to be flashed at offset 0x400000 _and_ 0x440000
   * The latest firmware needs to be flashed to the M0S Dock
   * A default ADF disk images named ```df0.adf``` should be placed on SD card (e.g. workbench 1.3)
+  * For the SD card to work [all components incl. the M0S](https://github.com/harbaum/NanoMig/issues/5) have to work properly
