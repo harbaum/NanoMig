@@ -77,7 +77,7 @@ The resulting VCD trace can e.g. be loaded into
 ## Screenshots
 
 With video emulation enabled all frames are written to the
-[screenshots](screeshots) directory in raw rgb data. These can be
+[screenshots](screenshots) directory in raw rgb data. These can be
 converted to e.g. png using [```ffmpeg```](https://www.ffmpeg.org/) like so:
 
 ```
