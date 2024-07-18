@@ -10,6 +10,7 @@ Currently implemented in this testbench are:
  - Floppy disk emulation
  - SD card emulation
  - UART emulation (for e.g. diagnostic output of DiagROM)
+ - Includes a skeleton for a [custom test rom](test_rom)
 
 Some of these features can be enabled and disabled in the ```Makefile```
 and in ```nanomig.cpp``` itself. Not all options are always tested and
@@ -30,9 +31,8 @@ that runs on verilator](https://github.com/emoon/fx68x_verilator).
 
 The simulation has only been tested on Linux.
 
-It has been tested with Verilator 5.015 devel rev v5.014-19-g768b78e7d
-built from the [github master branch in early
-2024](https://github.com/verilator/verilator). Earlier versions,
+It has been tested with Verilator 5.026 built from the [github master
+branch](https://github.com/verilator/verilator). Earlier versions,
 especially the ones that come with some Linux distros are likely too
 old. Newer versions will probably work. You'll need to adjust the
 [Makefile](Makefile#L27) to point to your installed verilator setup.
