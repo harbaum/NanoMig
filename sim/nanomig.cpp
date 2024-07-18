@@ -19,9 +19,8 @@
 
 // define which rom to load into emulated ram/rom
 #define KICK "kick13.rom" 
-// #define KICK "emutos-amiga-rom-1.3/emutos-amiga.rom"
 // #define KICK "DiagROM/DiagROM"
-// #define KICK "../src/ram_test/ram_test.bin"
+// #define KICK "test_rom/test_rom.bin"
 
 // enable various simulation options
 // #define UART_ONLY
