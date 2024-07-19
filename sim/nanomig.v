@@ -23,8 +23,8 @@ module nanomig
    output [3:0]	 green,
    output [3:0]	 blue,
 
-   input [3:0]   sdc_img_mounted,
-   input [31:0]  sdc_img_size,
+   input [3:0]	 sdc_img_mounted,
+   input [31:0]	 sdc_img_size,
    
 `ifdef SD_EMU   
    output	 sdclk,
@@ -45,6 +45,7 @@ module nanomig
    input	 trigger,
    
    // external ram/rom interface
+   input [3:0]	 memory_config,
    output [18:1] ram_a,
 `ifdef INTERNAL_MEM
    output [15:0] ram_din,
@@ -166,7 +167,8 @@ sd_rw #(
    .clk28m(clk_28m),  // 28.37516 MHz clock
 
    .chipset_config(3'b100), // ecs, a500 (!a1k), pal
-		    
+   .memory_config(memory_config),
+	    
    // rs232 pins
    .rxd(1'b1),     // rs232 receive
    .txd(uart_tx),  // rs232 send

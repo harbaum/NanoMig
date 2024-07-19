@@ -66,7 +66,8 @@ static uint64_t GetTickCountMs() {
 unsigned short kickrom[256*1024];  // 2*256 kBytes = 256k words
 #define SWAP16(a)   ((((a)&0x00ff)<<8)|(((a)&0xff00)>>8))
 
-unsigned char ram[512*1024];   // 512k ram
+// 8 banks @ 512k (incl. kickrom)
+unsigned char ram[7][512*1024];   // 512k ram
 
 #ifdef VIDEO
 
@@ -793,22 +794,26 @@ void tick(int c) {
   last_clk_7m_x = tb->clk_7m;
 
   // ram access three 28Mhz events (both edges) after clk7 falling edge
-  if(ram_trigger & 8) {
+  if(ram_trigger & 8 && tb->ram_bank) {
+    // convert from bank bitmap to bank index
+    int bank = 0;
+    while(!(tb->ram_bank & (1<<bank))) bank++;
+    
     if(!tb->ram_we) {
       // we only allow chipram write
-      if(tb->ram_bank != 1) {
-	printf("unsupported ram write bank %d addr %08x = %04x\n",
+      if(tb->ram_bank & 8) {
+	printf("unsupported rom write bank %d addr %08x = %04x\n",
 	       tb->ram_bank, 2*tb->ram_a, tb->ram_dout);	
 	exit(-1);
       }
-	
+      
       // ram_a is actually the word address
       int addr = (tb->ram_a<<1) & ((512*1024)-1);
       
       // printf("WR RAM %08x = %04x\n", tb->ram_a<<1, tb->ram_dout);
       
-      if(!(tb->ram_be & 1)) ram[addr+0] = tb->ram_dout>>8;
-      if(!(tb->ram_be & 2)) ram[addr+1] = tb->ram_dout&0xff;
+      if(!(tb->ram_be & 1)) ram[bank][addr+0] = tb->ram_dout>>8;
+      if(!(tb->ram_be & 2)) ram[bank][addr+1] = tb->ram_dout&0xff;
     }
   
     if(!tb->ram_oe) {
@@ -820,13 +825,10 @@ void tick(int c) {
 	// in the 256k case	
 	tb->ram_din = SWAP16(kickrom[tb->ram_a & 0x3ffff]);
 	// printf("RD KICK %08x = %04x\n", tb->ram_a<<1, tb->ram_din);      
-      } else if(tb->ram_bank & 1) {
-	// printf("Chip Read addr %08x\n", 2*(tb->ram_a & 0x3ffff));
-	tb->ram_din = SWAP16(((unsigned short*)ram)[tb->ram_a & 0x3ffff]);
-	// printf("RD RAM %08x = %04x\n", tb->ram_a<<1, tb->ram_din);
       } else {
-	printf("Unknown Read bank %d, addr %08x\n", tb->ram_bank, tb->ram_a);
-	exit(-1);	
+	// printf("Chip Read addr %08x\n", 2*(tb->ram_a & 0x3ffff));
+	tb->ram_din = SWAP16(((unsigned short*)(ram[bank]))[tb->ram_a & 0x3ffff]);
+	// printf("RD RAM %d:%08x = %04x\n", bank, tb->ram_a<<1, tb->ram_din);
       }
     }
   }
@@ -879,15 +881,20 @@ int main(int argc, char **argv) {
   // Initialize Verilators variables
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
+
+#ifdef TRACESTART
   trace = new VerilatedVcdC;
   trace->spTrace()->set_time_unit("1ns");
   trace->spTrace()->set_time_resolution("1ps");
+#endif
   simulation_time = 0;
   
   // Create an instance of our module under test
   tb = new Vnanomig;
+#ifdef TRACESTART
   tb->trace(trace, 99);
   trace->open("nanomig.vcd");
+#endif
   
 #ifdef SD_EMU
   tb->sdcmd_in = 1; tb->sddat_in = 15;  // inputs of sd card
@@ -895,6 +902,7 @@ int main(int argc, char **argv) {
 
   tb->sdc_img_mounted = 0;
   tb->sdc_img_size = 0;
+  tb->memory_config = 1;   // 0=512k chip, 1=1MB chip
   
   tb->reset = 1;
   for(int i=0;i<10;i++) {
