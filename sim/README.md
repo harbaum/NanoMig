@@ -74,6 +74,23 @@ The resulting VCD trace can e.g. be loaded into
 
 ![NanoMig trace in gtkwave](nanomig_wave.png)
 
+## Floppy disk simulation
+
+The floppy disk can be simulated including the SD card itself or by
+omitting the SD card. By default the SD card itself is not simulated
+and the simulation environment sends data into the Minimig floppy
+implementation directly. This should be sufficient for most tests.
+
+Floppy simulation is now by default enabled and expects a file named
+```df0.adf``` to be present. This will then be inserted as DF0. If
+no such file is present, then the simulation behaves as if no disk
+is inserted in the amiga kick displays the disk/hand logo after
+around 3 seconds simulation time.
+
+When booting kickstart 1.3, the floppy will first be accessed at
+around 3 seconds simulation time with some debug output about disk IO
+on the console.
+
 ## Screenshots
 
 With video emulation enabled all frames are written to the

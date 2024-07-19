@@ -25,11 +25,11 @@
 // enable various simulation options
 // #define UART_ONLY
 #define VIDEO   // enable for SDL video
-// #define FDC_TEST    // test floppy disk interface
+ #define FDC_TEST    // test floppy disk interface
 // #define FDC_RAM_TEST_VERIFY   // verify track data against minimigs original firmware fdd.c. only works with ram_test rom
 
 #ifdef FDC_TEST
-#define FLOPPY_ADF  "wb13.adf"
+#define FLOPPY_ADF  "df0.adf"
 #endif
 
 #ifdef VIDEO
@@ -49,8 +49,12 @@ static double simulation_time;
 // specfiy simulation runtime and from which point in time a trace should
 // be written. Not defining this will run the simulation forever which e.g.
 // may be useful when running with SDL video emulation enabled
-#define TRACESTART   0.4
-#define TRACEEND     (TRACESTART + 0.2)   // 0.1s ~ 1G
+// #define TRACESTART   2.890
+// #define TRACEEND     (TRACESTART + 0.2)   // 0.1s ~ 1G
+
+// events for kick13:
+// 1.684  floppy led on/off and delection of drives 1-3
+// 2.895  floppy 0 disk check and boot attempt
 
 static uint64_t GetTickCountMs() {
   struct timespec ts;
@@ -192,14 +196,14 @@ void SPI(int data) {
   // We ignore this data on minimig size and wrap accordingly during
   // comparison
   if(cnt >= TRACK_SIZE) {
-    // printf("Track buffer overflow by %d\n", cnt - TRACK_SIZE);
+    // printf("FLOPPY Track buffer overflow by %d\n", cnt - TRACK_SIZE);
     cnt++;
     return;
   }
   
   track_buffer[cnt++] = data;  
   if(cnt == TRACK_SIZE)
-    printf("Minimig: complete firmware generated track in buffer\n");
+    printf("FLOPPY complete firmware generated track in buffer\n");
 }
 
 void SendSector(unsigned char *pData, unsigned char sector, unsigned char track,
@@ -307,11 +311,11 @@ void SendSector(unsigned char *pData, unsigned char sector, unsigned char track,
       SPI(*p++ | 0xAA);
 
 #if 1
-    printf("header checksum: %02x/%02x/%02x/%02x\n",
+    printf("FLOPPY header checksum: %02x/%02x/%02x/%02x\n",
            header_checksum[0] | 0xAA,header_checksum[1] | 0xAA,
            header_checksum[2] | 0xAA,header_checksum[3] | 0xAA);
     
-    printf("data checksum: %02x/%02x/%02x/%02x\n",
+    printf("FLOPPY data checksum: %02x/%02x/%02x/%02x\n",
            data_checksum[0] | 0xAA,data_checksum[1] | 0xAA,
            data_checksum[2] | 0xAA,data_checksum[3] | 0xAA);   
 #endif
@@ -331,17 +335,17 @@ void build_track_buffer(int sector, unsigned char *data) {
   int track_sec = sector % 11;   // sector within track
 
   if(sector/11 != last_track) {
-    printf("track now %d\n", sector/11);
+    printf("FLOPPY track now %d\n", sector/11);
     last_track = sector/11;
     SPI(-1);
   }
 
-  printf("Loading sector track %d, sector %d\n",
+  printf("FLOPPY Loading sector track %d, sector %d\n",
 	 sector/11, sector%11);
   
   if(!data) {
     FILE *f = fopen(FLOPPY_ADF, "rb");
-    if(!f) { perror("open file"); return; }
+    if(!f) { perror("FLOPPY open file"); return; }
 
     fseek(f, sector*512, SEEK_SET);
     if(fread(sector_buffer[track_sec], 1, 512, f) != 512) {  perror("read error"); return; }
@@ -607,7 +611,37 @@ void tick(int c) {
   if(c) capture_video();
 #endif
 
+  // check for power led
+  static int power_led_D = -1;
+  if(tb->power_led != power_led_D) {
+    printf("Power LED = %s at %.3fms\n", tb->power_led?"ON":"OFF", simulation_time*1000);
+    power_led_D = tb->power_led;
+  }
+    
 #ifdef FDC_TEST
+  // fake a disk image insertion
+  static int insert_counter = 0;
+  if(insert_counter < 1000) {
+    // check if floppy image can be mounted    
+    if(insert_counter == 100) {
+      printf("FLOPPY: Using image '%s'\n", FLOPPY_ADF);
+      FILE *f = fopen(FLOPPY_ADF, "rb");
+      if(f) {
+	fseek(f, 0, SEEK_END);
+	tb->sdc_img_size = ftell(f);
+	fclose(f);
+	printf("FLOPPY: Mounting df0 image size %d bytes.\n", tb->sdc_img_size);	
+      } else
+	printf("FLOPPY: Unable to open floppy disk image. Not mounting disk.\n");
+    }
+
+    if(tb->sdc_img_size) {    
+      if(insert_counter == 120) tb->sdc_img_mounted = 1;
+      if(insert_counter == 140) tb->sdc_img_mounted = 0;
+    }
+    insert_counter++;
+  }
+  
   // check for disk led
   static int floppy_led_D = -1;
   if(tb->floppy_led != floppy_led_D) {
@@ -687,7 +721,7 @@ void tick(int c) {
       if(tb->sdc_rd & 1) {
 	tb->sdc_busy = 1;
 
-	printf("SD request, sector %d (tr %d, sd %d, sec %d)\n",
+	printf("FLOPPY request, sector %d (tr %d, sd %d, sec %d)\n",
 	       tb->sdc_sector, tb->sdc_sector/22, (tb->sdc_sector/11)&1, tb->sdc_sector%11);
 
 	// this triggers two things:
@@ -858,6 +892,9 @@ int main(int argc, char **argv) {
 #ifdef SD_EMU
   tb->sdcmd_in = 1; tb->sddat_in = 15;  // inputs of sd card
 #endif
+
+  tb->sdc_img_mounted = 0;
+  tb->sdc_img_size = 0;
   
   tb->reset = 1;
   for(int i=0;i<10;i++) {
@@ -866,7 +903,8 @@ int main(int argc, char **argv) {
   }
   
   tb->reset = 0;
-
+  printf("System out of reset @%.3fms\n", 1000*simulation_time);
+  
   /* run for a while */
   while(
 #ifdef TRACEEND

@@ -13,8 +13,9 @@ module nanomig
    output	 uart_tx,
 
    // signal to e.g. trigger on disk activity
+   output	 power_led,
    output	 floppy_led,
-   
+
    // video
    output	 hs_n,
    output	 vs_n,
@@ -22,6 +23,9 @@ module nanomig
    output [3:0]	 green,
    output [3:0]	 blue,
 
+   input [3:0]   sdc_img_mounted,
+   input [31:0]  sdc_img_size,
+   
 `ifdef SD_EMU   
    output	 sdclk,
    output	 sdcmd,
@@ -173,9 +177,11 @@ sd_rw #(
    .n_joy1(6'h3f), // joystick 1 [fire2,fire,right,left,down,up] (default mouse port)
    .n_joy2(6'h3f), // joystick 2 [fire2,fire,right,left,down,up] (default joystick port)
    .n_15khz(1'b1), // scandoubler disable
-   .pwrled(),      // power led
+   .pwrled(power_led),      // power led
    
    // sd card interface for floppy disk emulation
+   .sdc_img_mounted(sdc_img_mounted),
+   .sdc_img_size(sdc_img_size),
    .sdc_rd(sdc_rd),
    .sdc_sector(sdc_sector),
    .sdc_busy(sdc_busy),
@@ -196,6 +202,7 @@ sd_rw #(
    .aud_r(),       // audio bitstream right
 		    
    // user i/o
+   .floppy_config({2'd1, 1'b0}),  // enable one floppy
    .floppyled(floppy_led),
    
    // unused pins
