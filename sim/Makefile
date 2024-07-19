@@ -41,7 +41,7 @@ endif
 all: $(PRJ)
 
 $(PRJ): $(PRJ).cpp ${HDL_FILES} Makefile
-	verilator -O3 -Wno-fatal --trace --threads 4 --trace-underscore -top-module $(PRJ) $(VERILATOR_FLAGS) -cc ${HDL_FILES} --exe $(PRJ).cpp -o ../$(PRJ) -CFLAGS "${EXTRA_CFLAGS}" -LDFLAGS "${EXTRA_LDFLAGS}"
+	verilator -O3 -Wno-fatal --trace --threads 1 --trace-underscore -top-module $(PRJ) $(VERILATOR_FLAGS) -cc ${HDL_FILES} --exe $(PRJ).cpp -o ../$(PRJ) -CFLAGS "${EXTRA_CFLAGS}" -LDFLAGS "${EXTRA_LDFLAGS}"
 	make -j -C ${OBJ_DIR} -f V$(PRJ).mk
 
 $(PRJ).vcd: $(PRJ)
