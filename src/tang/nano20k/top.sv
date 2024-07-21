@@ -104,6 +104,9 @@ module top(
 
 wire [5:0]	leds;
    
+// physcial dsub9 joystick  
+wire [5:0] db9_joy = { !io[5], !io[0], !io[2], !io[1], !io[4], !io[3] };   
+   
 assign leds[5:4] = 2'b00;
 assign leds[3] = |sd_rd;
 assign leds_n = ~leds;  
@@ -295,7 +298,7 @@ hid hid (
 
         // input local db9 port events to be sent to MCU. Changes also trigger
         // an interrupt, so the MCU doesn't have to poll for joystick events
-        .db9_port( 6'h00 ),
+        .db9_port( db9_joy ),
         .irq( hid_int ),
         .iack( hid_iack ),
 
@@ -375,10 +378,16 @@ osd_u8g2 osd_u8g2 (
 // two 15 bit audio channels
 wire [14:0] audio_left;
 wire [14:0] audio_right;   
-  
+
 // map first HID/USB joystick into second amiga joystick port
-wire [5:0] n_joy2 = { !hid_joy0[5], !hid_joy0[4],
-	  !hid_joy0[3], !hid_joy0[2], !hid_joy0[1], !hid_joy0[0] };   
+// wire in db9 joystick
+wire [5:0] n_joy2 = { 
+	  !(hid_joy0[5] | db9_joy[5]), 
+	  !(hid_joy0[4] | db9_joy[4]),
+	  !(hid_joy0[3] | db9_joy[3]), 
+	  !(hid_joy0[2] | db9_joy[2]),
+	  !(hid_joy0[1] | db9_joy[1]),
+	  !(hid_joy0[0] | db9_joy[0]) };   
    
 wire [23:1] cpu_a;
 wire cpu_as_n, cpu_lds_n, cpu_uds_n;
@@ -487,8 +496,8 @@ Minimig1 MINIMIG1
    
    // unused pins
    .cpurst(cpu_reset),
-   .n_joy3(5'h1f),      // joystick 3 [fire2,fire,right,left,down,up] (printer port)
-   .n_joy4(5'h1f)       // joystick 4 [fire2,fire,right,left,down,up] (printer port)
+   .n_joy3(5'h1f),      // joystick 3 [fire,right,left,down,up] (printer port)
+   .n_joy4(5'h1f)       // joystick 4 [fire,right,left,down,up] (printer port)
 );
 
 /* ------------------- fx68k cycle exact CPU core  ------------------- */
@@ -497,8 +506,6 @@ reg  phi1, phi2;
 always @(posedge clk_28m) begin
    phi1 <= 0;
    phi2 <= 0;
-//   if(~clk_cnt[0] && ~clk_cnt[1]) phi1 <= 1;   
-//   if(~clk_cnt[0] &&  clk_cnt[1]) phi2 <= 1;
    if(clk_cnt[0] &&  clk_cnt[1]) phi1 <= 1;   
    if(clk_cnt[0] && ~clk_cnt[1]) phi2 <= 1;
 end
@@ -618,9 +625,6 @@ end
 
 // ----------------------------- SDRAM ---------------------------------
 
-assign O_sdram_addr = sd_addr[10:0];
-wire [12:0] sd_addr;
-
 // sdram can be addressed during runtime by minimig and at startup
 // by flash rom loader
 
@@ -648,7 +652,7 @@ wire [3:0] sdram_segment =
 		   4'hf;
 
 wire    sdram_access = ram_bank != 0;  
-wire    sdram_rw     = sdram_access && (ram_bank != 8) && !ram_we_n;  
+wire	sdram_rw     = !ram_we_n;
 
 wire		sdram_refresh = rom_done?!sdram_access:1'b0;
 wire [21:0] sdram_addr    = rom_done?{sdram_segment,ram_a}:flash_ram_addr;
@@ -661,7 +665,7 @@ sdram sdram (
   	.sd_clk     ( O_sdram_clk   ), // sd clock
 	.sd_cke     ( O_sdram_cke   ), // clock enable
 	.sd_data    ( IO_sdram_dq   ), // 32 bit bidirectional data bus
-	.sd_addr    ( sd_addr       ), // 11 bit multiplexed address bus
+	.sd_addr    ( O_sdram_addr  ), // 11 bit multiplexed address bus
 	.sd_dqm     ( O_sdram_dqm   ), // two byte masks
 	.sd_ba      ( O_sdram_ba    ), // two banks
 	.sd_cs      ( O_sdram_cs_n  ), // a single chip select

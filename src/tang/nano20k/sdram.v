@@ -24,8 +24,8 @@ module sdram (
 	output		  sd_clk, // sd clock
 	output		  sd_cke, // clock enable
 	inout reg [31:0]  sd_data, // 32 bit bidirectional data bus
-	output reg [12:0] sd_addr, // 11 bit multiplexed address bus
-	output     [3:0]  sd_dqm, // two byte masks
+	output reg [10:0] sd_addr, // 11 bit multiplexed address bus
+	output reg [3:0]  sd_dqm, // two byte masks
 	output reg [1:0]  sd_ba, // two banks
 	output		  sd_cs, // a single chip select
 	output		  sd_we, // write enable
@@ -39,17 +39,21 @@ module sdram (
 	output		  ready, // ram is ready and has been initialized
 	input		  refresh, // chipset requests a refresh cycle
 	input [15:0]	  din, // data input from chipset/cpu
-	output [15:0]     dout,
+	output reg [15:0] dout,
 	input [21:0]	  addr, // 22 bit word address
 	input [1:0]	  ds, // upper/lower data strobe
 	input		  cs, // cpu/chipset requests read/wrie
 	input		  we          // cpu/chipset requests write
 );
 
+// The NanoMig runs this SDRAM at 72MHz asynchronously to the
+// 28Mhz main clock. This means there are ~10 cycles per 7Mhz
+// Amiga clock cycle
+   
 assign sd_clk = ~clk;
 assign sd_cke = 1'b1;  
    
-localparam RASCAS_DELAY   = 3'd1;   // tRCD=15ns -> 1 cycle@32MHz
+localparam RASCAS_DELAY   = 3'd2;   // tRCD=15ns -> 1 cycle@32MHz
 localparam BURST_LENGTH   = 3'b000; // 000=1, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2;   // 2/3 allowed
@@ -102,15 +106,20 @@ assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
 
 // drive data to SDRAM on write
-assign sd_data = we ? { din, din } : 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz;
+assign sd_data = we_R ? { din_R, din_R } : 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz;
 
-assign dout = addr[0]?sd_data[15:0]:sd_data[31:16];
+// assign dout = addr_R[0]?sd_data[15:0]:sd_data[31:16];
    
 // honour byte select on write. Always read all four bytes
-assign sd_dqm = !we?4'b0000:addr[0]?{2'b11,ds}:{ds,2'b11};
+// assign sd_dqm = !we_R?4'b0000:addr[0]?{2'b11,ds_R}:{ds_R,2'b11};
 
+reg [1:0] ds_R;
+reg we_R;
+reg [21:0] addr_R;   
+reg [15:0] din_R;   
+   
 always @(posedge clk) begin
-   reg csD, csD2;   
+   reg csD, csD2, csD3;   
    sd_cmd <= CMD_INHIBIT;  // default: idle
 
    // init state machines runs once reset ends
@@ -151,35 +160,45 @@ always @(posedge clk) begin
       if(state == STATE_IDLE) begin
          // start a ram cycle at the rising edge of cs. In case of NanoMig
 	 // this is actually the rising edge of the 7Mhz clock
-        if (csD && !csD2) begin
-          if(!refresh) begin
-            // RAS phase
-            sd_cmd <= CMD_ACTIVE;
-            sd_addr <= addr[19:9];
-            sd_ba <= addr[21:20];
-            state <= 3'd1;
-          end else
-            sd_cmd <= CMD_AUTO_REFRESH;
-        end
+         if (csD && !csD2) begin
+            if(!refresh) begin
+	       // latch input signals
+	       ds_R <= ds;
+	       we_R <= we;
+	       addr_R <= addr;	       
+	       din_R <= din;	       
+	       
+               // RAS phase
+               sd_cmd <= CMD_ACTIVE;
+               sd_addr <= addr[19:9];
+               sd_ba <= addr[21:20];
+               state <= 3'd1;
+
+	       if(!we) sd_dqm <=  4'b0000;
+	       else    sd_dqm <= addr[0]?{2'b11,ds}:{ds,2'b11};
+            end else
+              sd_cmd <= CMD_AUTO_REFRESH;
+         end
       end else begin
-        // always advance state unless we are in idle state
-        state <= state + 3'd1;
+         // always advance state unless we are in idle state
+         state <= state + 3'd1;
+	 sd_cmd <= CMD_NOP;
 	 
-        // -------------------  cpu/chipset read/write ----------------------
+         // -------------------  cpu/chipset read/write ----------------------
 
-        // CAS phase 
-        if(state == STATE_CMD_CONT) begin
-            sd_cmd <= we?CMD_WRITE:CMD_READ;
-            sd_addr <= { 3'b100, addr[8:1] };
-        end
-
-        if(state > STATE_CMD_CONT && state < STATE_READ)
-            sd_cmd <= CMD_NOP;
-      
-        // read phase
-//        if(state == STATE_READ /* && !we */) begin
-//            dout <= addr[0]?sd_data[15:0]:sd_data[31:16];
-//        end
+         // CAS phase 
+         if(state == STATE_CMD_CONT) begin
+            sd_cmd <= we_R?CMD_WRITE:CMD_READ;
+            sd_addr <= { 3'b100, addr_R[8:1] };
+         end
+	 
+         // read phase
+	 if(state == STATE_READ) begin
+	    if(!we_R)
+	      dout <= addr_R[0]?sd_data[15:0]:sd_data[31:16];
+	    
+	    state <= STATE_IDLE;	    
+	 end
       end
    end
 end

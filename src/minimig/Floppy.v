@@ -607,7 +607,7 @@ wire [15:0] floppy_sector_data =
     // we really need two sync marks as the first is not written, but the
     // software also expects to see one
                                                           // word 0,1: four preamble bytes (aaaa)
-    (fifo_word_counter[9:1]==9'd1)?16'h4489:              // word 2,3: two sync words (aaaa)
+    (fifo_word_counter[9:1]==9'd1)?16'h4489:              // word 2,3: two sync words (4489)
     (fifo_word_counter[9:1]==9'd2)?mfm_encoder_odd:       // word 4,5: 32 bit sector header odd bits
     (fifo_word_counter[9:1]==9'd3)?mfm_encoder_even:      // word 6,7: 32 bit sector header even bits
                                                           // word 8-23: 32 byte sector label (aaaa)
@@ -758,16 +758,16 @@ always @(posedge clk)
 // fifo write pointer control
 always @(posedge clk)
 	if (reset)
-		in_ptr[11:0] <= 0;
+		in_ptr <= 12'd0;
 	else if (wr)
-		in_ptr[11:0] <= in_ptr[11:0] + 1;
+		in_ptr <= in_ptr + 12'd1;
 
 // fifo read pointer control
 always @(posedge clk)
 	if (reset)
-		out_ptr[11:0] <= 0;
+		out_ptr <= 12'd0;
 	else if (rd)
-		out_ptr[11:0] <= out_ptr[11:0] + 1;
+		out_ptr <= out_ptr + 12'd1;
 
 // check lower 11 bits of pointer to generate equal signal
 assign equal = in_ptr[10:0]==out_ptr[10:0] ? 1'b1 : 1'b0;
