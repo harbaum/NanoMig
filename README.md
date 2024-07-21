@@ -4,7 +4,8 @@ NanoMig is a port of the [Minimig](https://en.wikipedia.org/wiki/Minimig) to the
 
 This is based on the [MiSTeryNano project](https://github.com/harbaum/MiSTeryNano/) and also relies on a [M0S Dock](https://wiki.sipeed.com/hardware/en/maixzero/m0s/m0s.html) being connected to the Tang Nano 20k.
 
-This is currently a very early work in progress and only a few games seems to run properly.
+This is currently a very early work in progress and only a few games seems to run properly. These problems currently only
+show on the real thing and not in simulation.
 
 Current state:
 
@@ -14,6 +15,7 @@ Current state:
   * Up to four virtual floppy drives
   * HDMI video and audio, PAL and NTSC
   * Keyboard, Mouse and Joystick via USB
+  * [Fully simulated](sim)
 
 ## Videos
 
