@@ -279,6 +279,7 @@ always @(posedge clk) n_data_r <= {n_data_r[0], n_data};
 wire [31:0] buf_readdata;
 wire [31:0] buf_q;
 
+`ifdef FIXME
 dpram #(12,16) io_buf0
 (
 	.clock(clk),
@@ -308,7 +309,8 @@ dpram #(12,16) io_buf1
 	.wren_b(write_data_io & (io_32 | io_cnt[0])),
 	.q_b(buf_q[31:16])
 );
-
+`endif
+   
 //------------------------------------------------------------------------------
 
 endmodule
