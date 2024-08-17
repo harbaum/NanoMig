@@ -94,9 +94,4 @@ on the console.
 ## Screenshots
 
 With video emulation enabled all frames are written to the
-[screenshots](screenshots) directory in raw rgb data. These can be
-converted to e.g. png using [```ffmpeg```](https://www.ffmpeg.org/) like so:
-
-```
-ffmpeg -vcodec rawvideo -f rawvideo -pix_fmt abgr -s 456x313 frame000.raw -f image2 -vcodec png frame000.png
-```
+[screenshots](screenshots) directory in PNG format.
