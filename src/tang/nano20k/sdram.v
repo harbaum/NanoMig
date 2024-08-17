@@ -37,9 +37,10 @@ module sdram (
 	input		  reset_n, // init signal after FPGA config to initialize RAM
 
 	output		  ready, // ram is ready and has been initialized
-	input		  refresh, // chipset requests a refresh cycle
+	input		  sync,
 	input [15:0]	  din, // data input from chipset/cpu
-	output reg [15:0] dout,
+//	output reg [15:0] dout,
+	output [15:0] dout,
 	input [21:0]	  addr, // 22 bit word address
 	input [1:0]	  ds, // upper/lower data strobe
 	input		  cs, // cpu/chipset requests read/wrie
@@ -53,7 +54,7 @@ module sdram (
 assign sd_clk = ~clk;
 assign sd_cke = 1'b1;  
    
-localparam RASCAS_DELAY   = 3'd2;   // tRCD=15ns -> 1 cycle@32MHz
+localparam RASCAS_DELAY   = 3'd2;   // tRCD=15ns -> 2 cycle@64MHz
 localparam BURST_LENGTH   = 3'b000; // 000=1, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2;   // 2/3 allowed
@@ -68,8 +69,8 @@ localparam MODE = { 1'b0, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, BUR
 
 // The state machine runs at 32Mhz synchronous to the sync signal.
 localparam STATE_IDLE      = 3'd0;   // first state in cycle
-localparam STATE_CMD_CONT  = STATE_IDLE + RASCAS_DELAY; // command can be continued
-localparam STATE_READ      = STATE_CMD_CONT + CAS_LATENCY + 3'd1;
+localparam STATE_CMD_CONT  = STATE_IDLE + RASCAS_DELAY; // command can be continued (== state 2)
+localparam STATE_READ      = STATE_CMD_CONT + CAS_LATENCY + 3'd1; // (== state 5)
 localparam STATE_LAST      = 3'd6;  // last state in cycle
    
 // ---------------------------------------------------------------------
@@ -88,19 +89,18 @@ assign ready = !(|init_state);
 // ---------------------------------------------------------------------
 
 // all possible commands
-localparam CMD_INHIBIT         = 4'b1111;
-localparam CMD_NOP             = 4'b0111;
-localparam CMD_ACTIVE          = 4'b0011;
-localparam CMD_READ            = 4'b0101;
-localparam CMD_WRITE           = 4'b0100;
-localparam CMD_BURST_TERMINATE = 4'b0110;
-localparam CMD_PRECHARGE       = 4'b0010;
-localparam CMD_AUTO_REFRESH    = 4'b0001;
-localparam CMD_LOAD_MODE       = 4'b0000;
+localparam CMD_NOP             = 3'b111;
+localparam CMD_ACTIVE          = 3'b011;
+localparam CMD_READ            = 3'b101;
+localparam CMD_WRITE           = 3'b100;
+localparam CMD_BURST_TERMINATE = 3'b110;
+localparam CMD_PRECHARGE       = 3'b010;
+localparam CMD_AUTO_REFRESH    = 3'b001;
+localparam CMD_LOAD_MODE       = 3'b000;
 
-reg [3:0] sd_cmd;   // current command sent to sd ram
+reg [2:0] sd_cmd;   // current command sent to sd ram
 // drive control signals according to current command
-assign sd_cs  = sd_cmd[3];
+assign sd_cs  = 1'b0;
 assign sd_ras = sd_cmd[2];
 assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
@@ -108,19 +108,22 @@ assign sd_we  = sd_cmd[0];
 // drive data to SDRAM on write
 assign sd_data = we_R ? { din_R, din_R } : 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz;
 
-// assign dout = addr_R[0]?sd_data[15:0]:sd_data[31:16];
+assign dout = addr_R[0]?sd_data[15:0]:sd_data[31:16];
    
 // honour byte select on write. Always read all four bytes
 // assign sd_dqm = !we_R?4'b0000:addr[0]?{2'b11,ds_R}:{ds_R,2'b11};
 
 reg [1:0] ds_R;
 reg we_R;
+reg cs_R;
 reg [21:0] addr_R;   
 reg [15:0] din_R;   
+
+localparam SYNCD = 1;
    
 always @(posedge clk) begin
-   reg csD, csD2, csD3;   
-   sd_cmd <= CMD_INHIBIT;  // default: idle
+   reg [SYNCD:0] syncD;   
+   sd_cmd <= CMD_NOP;  // default: idle
 
    // init state machines runs once reset ends
    if(!reset_n) begin
@@ -135,8 +138,7 @@ always @(posedge clk) begin
    end
    
    if(init_state != 0) begin
-      csD <= 1'b0;     
-      csD2 <= 1'b0;     
+      syncD <= 0;     
       
       // initialization takes place at the end of the reset
       if(state == STATE_IDLE) begin
@@ -152,32 +154,35 @@ always @(posedge clk) begin
         end
 	 
       end
-   end else begin
-      csD <= cs;
-      csD2 <= csD;
+   end else begin // if (init_state != 0)
+      // add a delay tp the chipselect which in fact is just the beginning
+      // of the 7MHz bus cycle
+      syncD <= { syncD[SYNCD-1:0], sync };      
       
       // normal operation, start on ... 
       if(state == STATE_IDLE) begin
-         // start a ram cycle at the rising edge of cs. In case of NanoMig
+         // start a ram cycle at the rising edge of sync. In case of NanoMig
 	 // this is actually the rising edge of the 7Mhz clock
-         if (csD && !csD2) begin
-            if(!refresh) begin
+         if (!syncD[SYNCD] && syncD[SYNCD-1]) begin
+	    cs_R <= cs;	    
+            state <= 3'd1;		 
+	       
+            if(cs) begin
 	       // latch input signals
 	       ds_R <= ds;
 	       we_R <= we;
 	       addr_R <= addr;	       
 	       din_R <= din;	       
-	       
+
                // RAS phase
                sd_cmd <= CMD_ACTIVE;
                sd_addr <= addr[19:9];
                sd_ba <= addr[21:20];
-               state <= 3'd1;
 
 	       if(!we) sd_dqm <=  4'b0000;
 	       else    sd_dqm <= addr[0]?{2'b11,ds}:{ds,2'b11};
             end else
-              sd_cmd <= CMD_AUTO_REFRESH;
+	      sd_cmd <= CMD_NOP;
          end
       end else begin
          // always advance state unless we are in idle state
@@ -188,17 +193,20 @@ always @(posedge clk) begin
 
          // CAS phase 
          if(state == STATE_CMD_CONT) begin
-            sd_cmd <= we_R?CMD_WRITE:CMD_READ;
-            sd_addr <= { 3'b100, addr_R[8:1] };
+	    if(cs_R) begin
+	       sd_cmd <= we_R?CMD_WRITE:CMD_READ;
+               sd_addr <= { 3'b100, addr_R[8:1] };
+	    end else
+              sd_cmd <= CMD_AUTO_REFRESH;
          end
 	 
-         // read phase
-	 if(state == STATE_READ) begin
-	    if(!we_R)
-	      dout <= addr_R[0]?sd_data[15:0]:sd_data[31:16];
-	    
-	    state <= STATE_IDLE;	    
+	 if(state == STATE_READ+1) begin
+//	    if(cs_R && !we_R)
+//	      dout <= addr_R[0]?sd_data[15:0]:sd_data[31:16];
 	 end
+	 
+	 if(state == STATE_LAST) 
+	   state <= STATE_IDLE;	    
       end
    end
 end

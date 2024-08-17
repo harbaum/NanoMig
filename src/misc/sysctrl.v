@@ -50,12 +50,21 @@ reg coldboot = 1'b1;
    
 assign int_out_n = (int_in != 8'h00 || coldboot)?1'b0:1'b1;
 
+// by default system is in reset
+reg main_reset = 1'b1;   
+assign system_reset = main_reset;  
+
+reg [31:0] main_reset_timeout;   
+   
 // process mouse events
-always @(posedge clk) begin
+always @(posedge clk) begin  
    if(reset) begin
       state <= 4'd0;      
       leds <= 2'b00;        // after reset leds are off
       color <= 24'h000000;  // color black -> rgb led off
+
+      // stay in reset for about 3 seconds or until MCU releases reset
+      main_reset_timeout <= 32'd75_000_000;      
 
       int_ack <= 8'h00;
       coldboot = 1'b1;      // reset is actually the power-on-reset
@@ -70,7 +79,14 @@ always @(posedge clk) begin
       system_video_scanlines <= 2'd0;      
       system_chipmem <= 2'd0;      
       system_slowmem <= 2'd1;      
-   end else begin
+   end else begin // if (reset)
+
+      // release main reset after timeout
+      if(main_reset_timeout) begin
+	 main_reset_timeout <= main_reset_timeout - 32'd1;
+	 main_reset <= 1'b0;
+      end
+      
       int_ack <= 8'h00;
 
       // iack bit 0 acknowledges the coldboot notification
@@ -111,13 +127,18 @@ always @(posedge clk) begin
 
             // CMD 4: config values (e.g. set by user via OSD)
             if(command == 8'd4) begin
-                // second byte can be any character which identifies the variable to set 
-                if(state == 4'd1) id <= data_in;
+               // second byte can be any character which identifies the variable to set 
+               if(state == 4'd1) id <= data_in;
 
 	       // Amiga/Nanomig specific control values
                 if(state == 4'd2) begin
                    // Value "R": coldboot(3), reset(1) or run(0)
-                   if(id == "R") system_reset <= data_in[0];
+                   if(id == "R") begin
+		      main_reset <= data_in[0];
+		      // cancel out-timeout if MCU is active
+		      main_reset_timeout <= 32'd0;
+		   end
+		   
 		   // Value "D": 1(0) to 4(3) floppy drives
 		   if(id == "D") system_floppy_drives <= data_in[1:0];
 		   // Value "S": normal(0) or turbo(1) floppy

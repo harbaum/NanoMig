@@ -1,21 +1,57 @@
 set_device GW2AR-LV18QN88C8/I7 -name GW2AR-18C
 
-add_file minimig/Minimig1.v
-add_file minimig/Agnus.v
-add_file minimig/Paula.v
-add_file minimig/Denise.v
-add_file minimig/Copper.v
-add_file minimig/Blitter.v
-add_file minimig/CIA8520.v
-add_file minimig/Floppy.v
+add_file nanomig.v
+add_file minimig-aga/amiga_clk.v
+add_file minimig-aga/cpu_wrapper.v
+add_file minimig-aga/minimig.v 
+add_file minimig-aga/ciaa.v
+add_file minimig-aga/ciab.v
+add_file minimig-aga/cia_int.v
+add_file minimig-aga/cia_timera.v
+add_file minimig-aga/cia_timerb.v
+add_file minimig-aga/cia_timerd.v 
+add_file minimig-aga/paula.v
+add_file minimig-aga/paula_uart.v
+add_file minimig-aga/paula_audio_channel.v
+add_file minimig-aga/paula_audio_mixer.v
+add_file minimig-aga/paula_audio.v
+add_file minimig-aga/paula_audio_volume.v
+add_file minimig-aga/paula_floppy_fifo.v
+add_file minimig-aga/paula_floppy.v
+add_file minimig-aga/paula_intcontroller.v
+add_file minimig-aga/agnus.v
+add_file minimig-aga/agnus_audiodma.v
+add_file minimig-aga/agnus_blitter_adrgen.v
+add_file minimig-aga/agnus_blitter_minterm.v
+add_file minimig-aga/agnus_diskdma.v
+add_file minimig-aga/agnus_beamcounter.v
+add_file minimig-aga/agnus_blitter_barrelshifter.v
+add_file minimig-aga/agnus_blitter.v
+add_file minimig-aga/agnus_refresh.v
+add_file minimig-aga/agnus_bitplanedma.v
+add_file minimig-aga/agnus_blitter_fill.v
+add_file minimig-aga/agnus_copper.v
+add_file minimig-aga/agnus_spritedma.v
+add_file minimig-aga/denise.v
+add_file minimig-aga/denise_bitplane_shifter.v
+add_file minimig-aga/denise_collision.v
+add_file minimig-aga/denise_colortable.v
+add_file minimig-aga/denise_playfields.v
+add_file minimig-aga/denise_sprites_shifter.v
+add_file minimig-aga/denise_bitplanes.v
+add_file minimig-aga/denise_hamgenerator.v
+add_file minimig-aga/denise_spritepriority.v
+add_file minimig-aga/denise_sprites.v
+add_file minimig-aga/denise_colortable_ram_mf.v
+add_file minimig-aga/gary.v
+add_file minimig-aga/gayle.v
+add_file minimig-aga/ide.v
+add_file minimig-aga/minimig_m68k_bridge.v
+add_file minimig-aga/minimig_bankmapper.v
+add_file minimig-aga/minimig_sram_bridge.v
+add_file minimig-aga/minimig_syscontrol.v
+add_file minimig-aga/userio.v
 add_file minimig/Amber.v
-add_file minimig/Beamcounter.v
-add_file minimig/Bitplanes.v
-add_file minimig/Gayle.v
-add_file minimig/Gary.v
-add_file minimig/Sprites.v
-add_file minimig/Audio.v
-add_file minimig/Clock.v
 add_file fx68k/fx68k.sv
 add_file fx68k/fx68kAlu.sv
 add_file fx68k/uaddrPla.sv
@@ -42,13 +78,13 @@ add_file tang/nano20k/flash_dspi.v
 add_file tang/nano20k/gowin_clkdiv/gowin_clkdiv.v
 add_file tang/nano20k/gowin_rpll/pll_142m.v
 add_file tang/nano20k/gowin_dpb/sector_dpram.v
+# add_file tang/nano20k/denise_colortable_ram_mf.v
 add_file tang/nano20k/top.sv
 add_file tang/nano20k/sdram.v
 add_file tang/nano20k/nanomig.cst
 add_file tang/nano20k/nanomig.sdc
 add_file fx68k/microrom.mem
 add_file fx68k/nanorom.mem
-add_file ram_test/ram_test.hex
 
 set_option -synthesis_tool gowinsynthesis
 set_option -output_base_name nanomig

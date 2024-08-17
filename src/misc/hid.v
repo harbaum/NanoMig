@@ -5,91 +5,46 @@
   */
 
 module hid (
-  input 	   clk,
-  input 	   reset,
+  input		   clk,
+  input		   reset,
 
-  input 	   data_in_strobe,
-  input 	   data_in_start,
-  input [7:0] 	   data_in,
+  input		   data_in_strobe,
+  input		   data_in_start,
+  input [7:0]	   data_in,
   output reg [7:0] data_out,
 
   // input local db9 port events to be sent to MCU to e.g.
   // be able to control the OSD via joystick connected
   // to the FPGA
-  input [5:0] 	   db9_port, 
-  output reg 	   irq,
-  input 	   iack,
+  input [5:0]	   db9_port, 
+  output reg	   irq,
+  input		   iack,
 
   // output HID data received from USB
-  input 	   clk7,
-  output [5:0] 	   mouse,
-  output reg 	   keystrobe,
-  output reg [7:0] keydat,
-  input 	   keyack,
+  output reg [2:0] mouse_buttons, // mouse buttons
+  output reg	   kbd_mouse_level,
+  output reg [1:0] kbd_mouse_type,
+  output reg [7:0] kbd_mouse_data,
 
   output reg [7:0] joystick0,
   output reg [7:0] joystick1
 );
 
-reg [1:0] mouse_btns;
-reg [1:0] mouse_x;
-reg [1:0] mouse_y;
-
-assign mouse = { mouse_btns, mouse_x, mouse_y };
-
-// limit the rate at which mouse movement data is sent to the
-// ikbd
-reg [14:0] mouse_div;
 reg [3:0] state;
 reg [7:0] command;  
 reg [7:0] device;   // used for joystick
    
-reg [7:0] mouse_x_cnt;
-reg [7:0] mouse_y_cnt;
-
 reg irq_enable;
 reg [5:0] db9_portD;
 reg [5:0] db9_portD2;
-
-// keyboard fifo makes sure the Amiga does not miss a key event
-// and brings key events into 7Mhz clock domain
-reg	  kbd_wait4ack;   
-reg [7:0] kbd_fifo [7:0];
-reg [2:0] kbd_fifo_rd_ptr;
-reg [2:0] kbd_fifo_wr_ptr;
-
-// key events are written into the fifo at 28Mhz   
-// key events are taken from the fifo at 7Mhz   
-always @(posedge clk7) begin
-   if(reset) begin
-      kbd_fifo_rd_ptr <= 3'd0;
-      keystrobe <= 1'b0;
-      keydat <= 8'h00;    
-      kbd_wait4ack <= 1'b0;     
-   end else begin
-      // generate keystrobe whenever data is present in fifo and if
-      // last byte has been acknowledged 
-      if((kbd_fifo_wr_ptr != kbd_fifo_rd_ptr) && !kbd_wait4ack && !keystrobe && !keyack) begin
-	 keystrobe <= 1'b1;	 
-	 kbd_wait4ack <= 1'b1;
-	 keydat <= kbd_fifo[kbd_fifo_rd_ptr];
-	 kbd_fifo_rd_ptr <= kbd_fifo_rd_ptr + 3'd1;
-      end else
-	keystrobe <= 1'b0;
-      
-      // don't send the next event before that last one has been ack'ed
-      if(keyack) kbd_wait4ack <= 1'b0;           
-   end
-end
 
 // process mouse events
 always @(posedge clk) begin
    if(reset) begin
       state <= 4'd0;
-      mouse_div <= 15'd0;
       irq <= 1'b0;
       irq_enable <= 1'b0;
-      kbd_fifo_wr_ptr <= 3'd0;	 
+      kbd_mouse_level <= 1'b0;      
    end else begin
       db9_portD <= db9_port;
       db9_portD2 <= db9_portD;
@@ -125,16 +80,28 @@ always @(posedge clk) begin
 	    // it just sends events 
             if(command == 8'd1) begin
                 if(state == 4'd1) begin
-		   kbd_fifo[kbd_fifo_wr_ptr] <= data_in;
-		   kbd_fifo_wr_ptr <= kbd_fifo_wr_ptr + 3'd1;
+		   kbd_mouse_level <= !kbd_mouse_level;
+		   kbd_mouse_type <= 2'd2;
+		   kbd_mouse_data <= data_in;
 		end
             end
 	       
             // CMD 2: mouse data
             if(command == 8'd2) begin
-                if(state == 4'd1) mouse_btns <= data_in[1:0];
-                if(state == 4'd2) mouse_x_cnt <= mouse_x_cnt + data_in;
-                if(state == 4'd3) mouse_y_cnt <= mouse_y_cnt + data_in;
+	        // we need to be careful here. The receiver runs on the 7Mhz clock
+	        // and we need to make sure that these two subsequent events don't come
+	        // too fast	       
+                if(state == 4'd1) mouse_buttons <= data_in[2:0];
+                if(state == 4'd2) begin
+		   kbd_mouse_level <= !kbd_mouse_level;
+		   kbd_mouse_type <= 2'd0;
+		   kbd_mouse_data <= data_in;
+		end
+                if(state == 4'd3) begin
+		   kbd_mouse_level <= !kbd_mouse_level;
+		   kbd_mouse_type <= 2'd1;
+		   kbd_mouse_data <= data_in;
+		end
             end
 
             // CMD 3: receive digital joystick data
@@ -152,34 +119,6 @@ always @(posedge clk) begin
                 data_out <= {2'b00, db9_portD };               
             end
 
-        end
-      end else begin // if (data_in_strobe)
-        mouse_div <= mouse_div + 15'd1;      
-        if(mouse_div == 15'd0) begin
-            if(mouse_x_cnt != 8'd0) begin
-                if(mouse_x_cnt[7]) begin
-                    mouse_x_cnt <= mouse_x_cnt + 8'd1;
-                    // 2 bit gray counter to emulate the mouse's light barriers
-                    mouse_x[0] <=  mouse_x[1];
-                    mouse_x[1] <= ~mouse_x[0];		  
-                end else begin
-                    mouse_x_cnt <= mouse_x_cnt - 8'd1;
-                    mouse_x[0] <= ~mouse_x[1];
-                    mouse_x[1] <=  mouse_x[0];
-                end	    
-            end // if (mouse_x_cnt != 8'd0)
-	    
-            if(mouse_y_cnt != 8'd0) begin
-                if(mouse_y_cnt[7]) begin
-                    mouse_y_cnt <= mouse_y_cnt + 8'd1;
-                    mouse_y[0] <=  mouse_y[1];
-                    mouse_y[1] <= ~mouse_y[0];		  
-                end else begin
-                    mouse_y_cnt <= mouse_y_cnt - 8'd1;
-                    mouse_y[0] <= ~mouse_y[1];
-                    mouse_y[1] <=  mouse_y[0];
-                end	    
-            end
         end
       end
    end
