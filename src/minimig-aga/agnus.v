@@ -231,8 +231,8 @@ reg [15:0] dmaconr;      //dma control read register
 
 //dma control register read
 always @(*) begin
-	if (reg_address[8:1]==DMACONR[8:1]) dmaconr[15:0] <= {1'b0, blit_busy, blit_zero, dmacon[12:0]};
-	else                                dmaconr <= 0;
+	if (reg_address[8:1]==DMACONR[8:1]) dmaconr[15:0] = {1'b0, blit_busy, blit_zero, dmacon[12:0]};
+	else                                dmaconr = 0;
 end
 
 //dma control register write
