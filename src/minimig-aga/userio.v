@@ -46,7 +46,10 @@ module userio
 	input       [2:0] mouse_btn,
 	input             kms_level,
 	input       [1:0] kbd_mouse_type,
-	input       [7:0] kbd_mouse_data,
+	input       [7:0] kbd_mouse_data
+
+`ifdef ENABLE_USERIO_SPI
+        ,
 	output reg  [1:0] aud_mix,
 	input             IO_ENA,
 	input             IO_STROBE,
@@ -73,6 +76,7 @@ module userio
 	output reg [15:0] host_wdat,
 	input      [15:0] host_rdat,
 	input             host_ack
+`endif
 );
 
 
@@ -386,6 +390,7 @@ assign _mthird = ~mouse_btn[2];
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 
+`ifdef ENABLE_USERIO_SPI
 assign host_bs = 2'b11;
 
 reg [7:0] t_memory_config = 8'b0_0_00_01_01;
@@ -498,5 +503,6 @@ always @(posedge clk) begin
 	
 	bootrom <= bootrom_r;
 end
-
+`endif
+   
 endmodule

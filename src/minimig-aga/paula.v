@@ -95,6 +95,19 @@ module paula
 	output        _wprot,					//disk is write-protected
 	output        index,          // disk index pulse
 	output        fdd_led,				//disk activity LED, active when DMA is on
+
+        // Interface MiSTeryNano sd card interface. This very simple connection allows the core
+        // to request sectors from within a OSD selected image file
+        input   [3:0] sdc_image_mounted,
+        input   [31:0] sdc_image_size,                  // length of image file
+        output  [3:0] sdc_rd,
+        output  [31:0] sdc_sector,
+        input   sdc_busy,
+        input   sdc_done,
+	input	sdc_byte_in_strobe,
+	input   [8:0] sdc_byte_in_addr,
+	input   [7:0] sdc_byte_in_data,
+
 	//flash drive host controller interface	(SPI)
 	input         IO_ENA,
 	input         IO_STROBE,
@@ -269,6 +282,17 @@ paula_floppy pf1
 	.IO_DOUT(IO_DOUT),
 	.fdd_led(fdd_led),
 	.floppy_drives(floppy_drives),
+
+        // sd card interface for floppy disk emulation
+        .sdc_image_mounted(sdc_image_mounted),
+        .sdc_image_size(sdc_image_size),           // length of image file
+        .sdc_rd(sdc_rd),
+        .sdc_sector(sdc_sector),
+        .sdc_busy(sdc_busy),
+        .sdc_done(sdc_done),
+	.sdc_byte_in_strobe(sdc_byte_in_strobe),
+	.sdc_byte_in_addr(sdc_byte_in_addr),
+	.sdc_byte_in_data(sdc_byte_in_data),
 
 	// fifo / track display
 	.trackdisp(trackdisp),

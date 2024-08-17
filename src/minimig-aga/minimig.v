@@ -149,118 +149,137 @@
 module minimig
 (
 	//m68k pins
-	input  [23:1] cpu_address, // m68k address bus
-	output [15:0] cpu_data,    // m68k data bus
-	input  [15:0] cpudata_in,  // m68k data in
-	output  [2:0] _cpu_ipl,    // m68k interrupt request
-	input 	     _cpu_as,     // m68k address strobe
-	input 	     _cpu_uds,    // m68k upper data strobe
-	input 	     _cpu_lds,    // m68k lower data strobe
-	input 	     cpu_r_w,     // m68k read / write
-	output 	     _cpu_dtack,  // m68k data acknowledge
-	output 	     _cpu_reset,  // m68k reset
-	input 	     _cpu_reset_in,//m68k reset in
-	input  [31:0] nmi_addr,    // m68k NMI address
-	output 	     ovr,         // NMI address decoding override
+	input [23:1]  cpu_address, // m68k address bus
+	output [15:0] cpu_data, // m68k data bus
+	input [15:0]  cpudata_in, // m68k data in
+	output [2:0]  _cpu_ipl, // m68k interrupt request
+	input	      _cpu_as, // m68k address strobe
+	input	      _cpu_uds, // m68k upper data strobe
+	input	      _cpu_lds, // m68k lower data strobe
+	input	      cpu_r_w, // m68k read / write
+	output	      _cpu_dtack, // m68k data acknowledge
+	output	      _cpu_reset, // m68k reset
+	input	      _cpu_reset_in,//m68k reset in
+	input [31:0]  nmi_addr, // m68k NMI address
+	output	      ovr, // NMI address decoding override
 
 	//sram pins
-	output [15:0] ram_data,    // sram data bus
-	input  [15:0] ramdata_in,  // sram data bus in
+	output [15:0] ram_data, // sram data bus
+	input [15:0]  ramdata_in, // sram data bus in
 	output [23:1] ram_address, // sram address bus
-	output 	     _ram_bhe,    // sram upper byte select
-	output 	     _ram_ble,    // sram lower byte select
-	output 	     _ram_we,     // sram write enable
-	output 	     _ram_oe,     // sram output enable
-	input  [47:0] chip48,      // big chipram read
+	output	      _ram_bhe, // sram upper byte select
+	output	      _ram_ble, // sram lower byte select
+	output	      _ram_we, // sram write enable
+	output	      _ram_oe, // sram output enable
+	input [47:0]  chip48, // big chipram read
 
 	//system	pins
-	input 	     rst_ext,     // reset from ctrl block
-	output 	     rst_out,     // minimig reset status
-	input 	     clk,         // 28.37516 MHz clock
-	input 	     clk7_en,     // 7MHz clock enable
-	input 	     clk7n_en,    // 7MHz negedge clock enable
-	input 	     c1,          // clock enable signal
-	input 	     c3,          // clock enable signal
-	input 	     cck,         // colour clock enable
-	input   [9:0] eclk,        // ECLK enable (1/10th of CLK)
+	input	      rst_ext, // reset from ctrl block
+	output	      rst_out, // minimig reset status
+	input	      clk, // 28.37516 MHz clock
+	input	      clk7_en, // 7MHz clock enable
+	input	      clk7n_en, // 7MHz negedge clock enable
+	input	      c1, // clock enable signal
+	input	      c3, // clock enable signal
+	input	      cck, // colour clock enable
+	input [9:0]   eclk, // ECLK enable (1/10th of CLK)
 
 	//rs232 pins
-	input 	     rxd,         // rs232 receive
-	output 	     txd,         // rs232 send
-	input 	     cts,         // rs232 clear to send
-	output 	     rts,         // rs232 request to send
-	output 	     dtr,         // rs232 Data Terminal Ready
-	input 	     dsr,         // rs232 Data Set Ready
-	input 	     cd,          // rs232 Carrier Detect
-	input 	     ri,          // rs232 Ring Indicator
+	input	      rxd, // rs232 receive
+	output	      txd, // rs232 send
+	input	      cts, // rs232 clear to send
+	output	      rts, // rs232 request to send
+	output	      dtr, // rs232 Data Terminal Ready
+	input	      dsr, // rs232 Data Set Ready
+	input	      cd, // rs232 Carrier Detect
+	input	      ri, // rs232 Ring Indicator
 
 	//I/O
-	input  [15:0] _joy1,       // joystick 1 [fire2,fire,up,down,left,right] (default mouse port)
-	input  [15:0] _joy2,       // joystick 2 [fire2,fire,up,down,left,right] (default joystick port)
-	input  [15:0] _joy3,       // joystick 3 [fire2,fire,up,down,left,right]
-	input  [15:0] _joy4,       // joystick 4 [fire2,fire,up,down,left,right]
-	input  [15:0] joya1,
-	input  [15:0] joya2,
-	input   [2:0] mouse_btn,   // mouse buttons
-	input 	     kms_level,
-	input   [1:0] kbd_mouse_type,
-	input   [7:0] kbd_mouse_data,
-	output 	     pwr_led,     // power led
-	output 	     fdd_led,     // disk activity LED, active when DMA is on
-	output 	     hdd_led,
-	input  [64:0] rtc,
+	input [15:0]  _joy1, // joystick 1 [fire2,fire,up,down,left,right] (default mouse port)
+	input [15:0]  _joy2, // joystick 2 [fire2,fire,up,down,left,right] (default joystick port)
+	input [15:0]  _joy3, // joystick 3 [fire2,fire,up,down,left,right]
+	input [15:0]  _joy4, // joystick 4 [fire2,fire,up,down,left,right]
+	input [15:0]  joya1,
+	input [15:0]  joya2,
+	input [2:0]   mouse_btn, // mouse buttons
+	input	      kms_level,
+	input [1:0]   kbd_mouse_type,
+	input [7:0]   kbd_mouse_data,
+	output	      pwr_led, // power led
+	output	      fdd_led, // disk activity LED, active when DMA is on
+	output	      hdd_led,
+	input [64:0]  rtc,
 
+	input [7:0]   memory_config,
+	input [5:0]   chipset_config,
+	input [3:0]   floppy_config,
+ 
 	//host controller interface (SPI)
-	input 	     IO_UIO,
-	input 	     IO_FPGA,
-	input 	     IO_STROBE,
-	output 	     IO_WAIT,
-	input  [15:0] IO_DIN,
+	input	      IO_UIO,
+	input	      IO_FPGA,
+	input	      IO_STROBE,
+	output	      IO_WAIT,
+	input [15:0]  IO_DIN,
 	output [15:0] IO_DOUT,
 
+        // Interface MiSTeryNano sd card interface. This very simple connection allows the core
+        // to request sectors from within a OSD selected image file
+	input [3:0]   sdc_img_mounted,
+	input [31:0]  sdc_img_size,
+        output [3:0]  sdc_rd,
+        output [31:0] sdc_sector,
+        input	      sdc_busy,
+        input	      sdc_done,
+	input	      sdc_byte_in_strobe,
+	input [8:0]   sdc_byte_in_addr,
+	input [7:0]   sdc_byte_in_data, 
+ 
 	//video
-	output 	     _hsync,      // horizontal sync
-	output 	     _vsync,      // vertical sync
-	output 	     _csync,      // composite sync
-	output 	     field1,
-	output        lace,
-	output 	     hblank,
-	output 	     vblank,
-	output  [7:0] red,
-	output  [7:0] green,
-	output  [7:0] blue,
-	output  [1:0] ar,
-	output  [2:0] scanline,
-	output 	     ce_pix,
-	output  [1:0] res,
+	output	      _hsync, // horizontal sync
+	output	      _vsync, // vertical sync
+	output	      _csync, // composite sync
+	output	      field1,
+	output	      lace,
+	output	      hblank,
+	output	      vblank,
+	output [7:0]  red,
+	output [7:0]  green,
+	output [7:0]  blue,
+	output [1:0]  ar,
+	output [2:0]  scanline,
+	output	      ce_pix,
+	output [1:0]  res,
+	output [8:0]  htotal, //video line length (140ns units)
 
 	//audio
-	output [14:0] ldata,       // left DAC data
-	output [14:0] rdata,       // right DAC data
-	output [8:0]  ldata_okk,   // left DAC data  (PWM volume)
-	output [8:0]  rdata_okk,   // right DAC data (PWM volume)
-	output  [1:0] aud_mix,
+	output [14:0] ldata, // left DAC data
+	output [14:0] rdata, // right DAC data
+	output [8:0]  ldata_okk, // left DAC data  (PWM volume)
+	output [8:0]  rdata_okk, // right DAC data (PWM volume)
+	output [1:0]  aud_mix,
 
+`ifdef ENABLE_TOCCATA
 	// Toccata audio
-	input         toccata_ena,
-	input   [7:0] toccata_base,
+	input	      toccata_ena,
+	input [7:0]   toccata_base,
 	output [15:0] toccata_aud_left,
 	output [15:0] toccata_aud_right,
-
+`endif
+ 
 	//user i/o
-	output  [1:0] cpucfg,
-	output  [2:0] cachecfg,
-	output  [6:0] memcfg,
-	output        bootrom,     // enable bootrom magic in gary.v
-	output        ide_ena,
+	output [1:0]  cpucfg,
+	output [2:0]  cachecfg,
+	output [6:0]  memcfg,
+	output	      bootrom, // enable bootrom magic in gary.v
+	output	      ide_ena,
 
-	output        ide_fast,
-	input         ide_ext_irq,
-	output  [5:0] ide_req,
-	input   [4:0] ide_address,
-	input         ide_write,
-	input  [15:0] ide_writedata,
-	input         ide_read,
+	output	      ide_fast,
+	input	      ide_ext_irq,
+	output [5:0]  ide_req,
+	input [4:0]   ide_address,
+	input	      ide_write,
+	input [15:0]  ide_writedata,
+	input	      ide_read,
 	output [15:0] ide_readdata
 );
 
@@ -320,7 +339,9 @@ wire        sel_reg;				//chip register select
 wire        sel_rtc;
 wire        sel_cia_a;			//cia A select
 wire        sel_cia_b;			//cia B select
+`ifdef ENABLE_TOCCATA
 wire        sel_toccata;
+`endif
 wire        int2;					//intterrupt 2
 wire        int3;					//intterrupt 3 
 wire        int6;					//intterrupt 6
@@ -342,7 +363,6 @@ wire        sof;					//start of video frame
 wire        vbl_int;          // vertical blanking interrupt
 wire        strhor_denise;		//horizontal strobe for Denise
 wire        strhor_paula;		//horizontal strobe for Paula
-wire  [8:0] htotal;			   //video line length (140ns units)
 wire        harddis;
 wire        varbeamen;
 
@@ -384,9 +404,6 @@ wire [15:0] cart_data_out;
 
 wire        usrrst;				//user reset from osd interface
 wire        hires;				//hires signal from Denise for interpolation filter enable in Amber
-wire  [7:0] memory_config;		//memory configuration
-wire  [3:0] floppy_config;		//floppy drives configuration (drive number and speed)
-wire  [4:0] chipset_config;	//chipset features selection
 wire  [5:0] ide_config;			//HDD & HDC config: bit #0 enables Gayle, bit #1 enables Master drive, bit #2 enables Slave drive
 
 //gayle stuff
@@ -522,6 +539,17 @@ paula PAULA1
 	.rdata(rdata),
 	.ldata_okk(ldata_okk),
 	.rdata_okk(rdata_okk),
+ 
+        // sd card interface for floppy disk emulation
+        .sdc_image_mounted(sdc_img_mounted),
+        .sdc_image_size(sdc_img_size),           // length of image file
+        .sdc_rd(sdc_rd),
+        .sdc_sector(sdc_sector),
+        .sdc_busy(sdc_busy),
+        .sdc_done(sdc_done),
+	.sdc_byte_in_strobe(sdc_byte_in_strobe),
+	.sdc_byte_in_addr(sdc_byte_in_addr),
+	.sdc_byte_in_data(sdc_byte_in_data),
 
 	.floppy_drives(floppy_config[3:2])
 );
@@ -548,7 +576,9 @@ userio USERIO1
 	.mouse_btn(mouse_btn),
 	.kbd_mouse_type(kbd_mouse_type),
 	.kms_level(kms_level),
-	.kbd_mouse_data(kbd_mouse_data), 
+	.kbd_mouse_data(kbd_mouse_data)
+`ifdef ENABLE_USERIO_SPI
+        ,
 	.aud_mix(aud_mix),
 	.IO_ENA(IO_UIO),
 	.IO_STROBE(IO_STROBE),
@@ -574,8 +604,15 @@ userio USERIO1
 	.host_wdat(host_wdat),
 	.host_rdat(host_rdat),
 	.host_ack(host_ack)
+`endif
 );
-
+   
+`ifndef ENABLE_USERIO_SPI
+// sane userio defaults
+assign cpucfg = 2'b00;  // fx68k/68000
+assign cachecfg_pre = 3'd0;   
+`endif
+   
 wire shres;
 assign ce_pix = (shres & |chipset_config[4:3]) | (hires & clk7n_en) | clk7_en;
 assign res = {shres & |chipset_config[4:3], hires};
@@ -738,6 +775,7 @@ minimig_sram_bridge RAM1
 	.ramdata_in(ramdata_in)	
 );
 
+`ifdef ENABLE_CART
 cart CART1
 (
   .clk(clk),
@@ -761,7 +799,12 @@ cart CART1
   .ovr(ovr),
   .cpuhlt(cpuhlt)
 );
-
+`else
+assign int7 = 1'b0;
+assign ovr =  1'b0;
+assign sel_cart =  1'b0;
+`endif
+   
 //level 7 interrupt for CPU
 assign _cpu_ipl = int7 ? 3'b000 : _iplx;	//m68k interrupt request
 
@@ -788,8 +831,10 @@ gary GARY1
 	.xbs(xbs),
 	.memory_config(memory_config[3:0]),
 	.hdc_ena(ide_ena & ~ide_fast), // Gayle decoding enable	
+`ifdef ENABLE_TOCCATA
 	.toccata_ena(toccata_ena),
 	.toccata_base(toccata_base),
+`endif
 	.ram_rd(ram_rd),
 	.ram_hwr(ram_hwr),
 	.ram_lwr(ram_lwr),
@@ -807,7 +852,9 @@ gary GARY1
 	.sel_ide(sel_ide),
 	.sel_gayle(sel_gayle),
 	.sel_rtc(sel_rtc),
+`ifdef ENABLE_TOCCATA
 	.sel_toccata(sel_toccata),
+`endif
 	.reset(reset),
 	.clk(clk),
 	.rom_readonly(rom_readonly),
@@ -856,6 +903,7 @@ end
 
 //-------------------------------------------------------------------------------------
 
+`ifdef ENABLE_RTC
 wire [15:0] rtc_out = (sel_rtc && cpu_rd) ? {12'h000, rtc_reg[{cpu_address_out[5:2], 2'b00} +:4]} : 16'h0000;
 
 reg [63:0] rtc_reg;
@@ -875,9 +923,11 @@ always @(posedge clk) begin
 		else if(rtc_reg[7:4] < 5) rtc_reg[7:0] <= {rtc_reg[7:4] + 1'd1, 4'b0000};
 	end
 end
+`endif
 
 // Toccata soundcard
 
+`ifdef ENABLE_TOCCATA
 wire [15:0] toccata_out;
 toccata #(
   .CLK_FREQUENCY(28_359_380)
@@ -896,16 +946,26 @@ toccata #(
 	.out_left(toccata_aud_left),
 	.out_right(toccata_aud_right)
 );
-
+`else
+assign int6_toccata = 1'b0; 
+`endif
+   
 //-------------------------------------------------------------------------------------
 
 //data multiplexer
 assign cpu_data_in[15:0]= gary_data_out[15:0]
 							 | cia_data_out[15:0]
 							 | gayle_data_out[15:0]
+`ifdef ENABLE_CART
 							 | cart_data_out[15:0]
+`endif
+`ifdef ENABLE_RTC
 							 | rtc_out
-							 | toccata_out;
+`endif
+`ifdef ENABLE_TOCCATA
+							 | toccata_out
+`endif
+;
 
 assign custom_data_out[15:0] = agnus_data_out[15:0]
 							 | paula_data_out[15:0]

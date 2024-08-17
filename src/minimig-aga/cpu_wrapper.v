@@ -139,6 +139,7 @@ reg  [31:0] vbr;
 
 always @* begin
 	if(cpucfg[1]) begin
+`ifdef ENABLE_TG68K
 		cpu_dout     = cpu_dout_p;
 		cpu_addr     = cpu_addr_p;
 		cpustate     = cpustate_p;
@@ -157,6 +158,7 @@ always @* begin
 		chip_data    = chipdout_i;
 		fastchip_sel = cpu_req & !cpu_addr_p[31:24];
 		fastchip_lw  = longword;
+`endif
 	end
 	else begin
 		cpu_dout     = cpu_dout_o;
@@ -179,7 +181,7 @@ always @* begin
 		fastchip_lw  = 0;
 	end
 end
-
+`ifdef ENABLE_TG68K
 wire [15:0] cpu_dout_p;
 wire [31:0] cpu_addr_p;
 wire  [1:0] cpustate_p;
@@ -222,6 +224,9 @@ cpu_inst_p
   .cacr_out(cacr_p),
   .vbr_out(vbr_p)
 );
+`else
+wire        reset_out_p = 1'b1;
+`endif
 
 wire [15:0] cpu_dout_o;
 wire [23:1] cpu_addr_o;
@@ -241,8 +246,9 @@ fx68k cpu_inst_o
 	.extReset(~reset),
 	.pwrUp(~reset),
 	.oRESETn(reset_out_o),
+`ifndef VERILATOR
 	.HALTn(1),
-
+`endif
 	.eRWn(wr_o),
 	.ASn(as_o),
 	.LDSn(lds_o),
