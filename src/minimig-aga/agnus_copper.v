@@ -234,41 +234,41 @@ reg copjmp1, copjmp2;
 always @(posedge clk)
   if (clk7_en) begin
   	if (reg_address_in[8:1]==COPJMP1[8:1] || sof)
-  		copjmp1 = 1;
+  		copjmp1 <= 1;
   	else if (clk_ena)
-  		copjmp1 = 0;
+  		copjmp1 <= 0;
   end
 
 always @(posedge clk)
   if (clk7_en) begin
   	if (reg_address_in[8:1]==COPJMP2[8:1])
-  		copjmp2 = 1;
+  		copjmp2 <= 1;
   	else if (clk_ena)
-  		copjmp2 = 0;
+  		copjmp2 <= 0;
   end
 		
 //strobe1 (also triggered by sof, start of frame)
 always @(posedge clk)
   if (clk7_en) begin
   	if (copjmp1 && clk_ena)
-  		strobe1 = 1;
+  		strobe1 <= 1;
   	else if (copper_state==RESET && dma_ack)
-  		strobe1 = 0;
+  		strobe1 <= 0;
   end
 		
 //strobe2
 always @(posedge clk)
   if (clk7_en) begin
   	if (copjmp2 && clk_ena)
-  		strobe2 = 1;
+  		strobe2 <= 1;
   	else if (copper_state==RESET && dma_ack)
-  		strobe2 = 0;
+  		strobe2 <= 0;
   end
 
 always @(posedge clk)
   if (clk7_en) begin
   	if (clk_ena)
-  		strobe = copjmp1 | copjmp2;
+  		strobe <= copjmp1 | copjmp2;
   end
 		
 //--------------------------------------------------------------------------------------
