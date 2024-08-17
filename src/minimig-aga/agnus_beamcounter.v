@@ -250,8 +250,27 @@ always @(posedge clk) begin
 			end_of_line <= 1'b0;
 	end
 end
-
+`ifdef VERILATOR
+reg [8:1] hpos_r;   
+reg hpos_0;      
+assign hpos = { hpos_r, hpos_0 };
+   
 // horizontal beamcounter
+always @(posedge clk) begin
+	if (clk7_en) begin
+		if (reg_address_in[8:1]==VHPOSW[8:1])
+			hpos_r[8:1] <= data_in[7:0]; 
+		else if (end_of_line)
+			hpos_r[8:1] <= 0;
+		else if (cck && (~ersy || |hpos_r[8:1]))
+			hpos_r[8:1] <= hpos_r[8:1] + 1'b1;
+	end
+end
+   
+always @(cck)
+	hpos_0 = cck;
+   
+`else
 always @(posedge clk) begin
 	if (clk7_en) begin
 		if (reg_address_in[8:1]==VHPOSW[8:1])
@@ -264,7 +283,8 @@ always @(posedge clk) begin
 end
 
 always @(cck) hpos[0] = cck;
-
+`endif
+   
 //long line signal (not used, only for better NTSC compatibility)
 reg long_line;	 // long line signal for NTSC compatibility (actually long lines are not supported yet)
 always @(posedge clk) begin
