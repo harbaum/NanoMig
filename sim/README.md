@@ -50,14 +50,14 @@ allowing to see the initial diagnostic output of DiagROM.
 
 Further simulation features like e.g. floppy simulation may
 need addtional files like e.g. ADF disk images. See the
-[```nanomig.cpp```](nanomig.cpp) for details.
+[```nanomig_tb.cpp```](nanomig_tb.cpp) for details.
 
 With all dependencies in place a simple ```make run``` should build
 the simulatior and run it.
 
 ## Running traces
 
-Tracing can be enabled in [```nanomig.cpp```](nanomig.cpp#L53) by
+Tracing can be enabled in [```nanomig_tb.cpp```](nanomig_tb.cpp#L49) by
 setting the following lines like e.g.:
 
 ```
