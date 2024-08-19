@@ -24,17 +24,19 @@
 
 #define KICK "kick13.rom" 
 // #define KICK "kick12.rom" 
-// #define KICK "../src/ram_test/ram_test.bin"
+// #define KICK "DiagROM/DiagROM"
+// #define KICK "test_rom/test_rom.bin"
 
 #define FDC_TEST
 
 #ifdef FDC_TEST
 #define FLOPPY_ADF  "df0.adf"
-// #define FLOPPY_ADF  "random.adf"
 
 // #define FDC_RAM_TEST_VERIFY   // verify track data against minimigs original firmware fdd.c. only works with ram_test rom
 FILE *adf_fd = NULL;
 #endif
+
+// #define UART_ONLY
 
 static Vnanomig_tb *tb;
 static VerilatedVcdC *trace;
@@ -525,6 +527,233 @@ void build_track_buffer(int sector, unsigned char *data) {
 // will result in the first 6 bytes not being written to ram
 #define FDC_SKIP 6
 
+#ifdef SD_EMU
+// Calculate CRC7
+// It's a 7 bit CRC with polynomial x^7 + x^3 + 1
+// input:
+//   crcIn - the CRC before (0 for first step)
+//   data - byte for CRC calculation
+// return: the new CRC7
+uint8_t CRC7_one(uint8_t crcIn, uint8_t data) {
+  const uint8_t g = 0x89;
+  uint8_t i;
+
+  crcIn ^= data;
+  for (i = 0; i < 8; i++) {
+    if (crcIn & 0x80) crcIn ^= g;
+    crcIn <<= 1;
+  }
+  
+  return crcIn;
+}
+
+// Calculate CRC16 CCITT
+// It's a 16 bit CRC with polynomial x^16 + x^12 + x^5 + 1
+// input:
+//   crcIn - the CRC before (0 for rist step)
+//   data - byte for CRC calculation
+// return: the CRC16 value
+uint16_t CRC16_one(uint16_t crcIn, uint8_t data) {
+  crcIn  = (uint8_t)(crcIn >> 8)|(crcIn << 8);
+  crcIn ^=  data;
+  crcIn ^= (uint8_t)(crcIn & 0xff) >> 4;
+  crcIn ^= (crcIn << 8) << 4;
+  crcIn ^= ((crcIn & 0xff) << 4) << 1;
+  
+  return crcIn;
+}
+
+uint8_t getCRC(unsigned char cmd, unsigned long arg) {
+  uint8_t CRC = CRC7_one(0, cmd);
+  for (int i=0; i<4; i++) CRC = CRC7_one(CRC, ((unsigned char*)(&arg))[3-i]);
+  return CRC;
+}
+
+uint8_t getCRC_bytes(unsigned char *data, int len) {
+  uint8_t CRC = 0;
+  while(len--) CRC = CRC7_one(CRC, *data++);
+  return CRC;  
+}
+
+unsigned long long reply(unsigned char cmd, unsigned long arg) {
+  unsigned long r = 0;
+  r |= ((unsigned long long)cmd) << 40;
+  r |= ((unsigned long long)arg) << 8;
+  r |= getCRC(cmd, arg);
+  r |= 1;
+  return r;
+}
+
+#define OCR  0xc0ff8000  // not busy, CCS=1(SDHC card), all voltage, not dual-voltage card
+#define RCA  0x0013
+
+// total cid respose is 136 bits / 17 bytes
+unsigned char cid[17] = "\x3f" "\x02TMS" "A08G" "\x14\x39\x4a\x67" "\xc7\x00\xe4";
+
+void sd_handle()  {
+  static int last_sdclk = -1;
+  static unsigned long sector = 0xffffffff;
+  static unsigned long long flen;
+  static FILE *fd = NULL;
+  static uint8_t sector_data[520];   // 512 bytes + four 16 bit crcs
+  static long long cmd_in = -1;
+  static long long cmd_out = -1;
+  static unsigned char *cmd_ptr = 0;
+  static int cmd_bits = 0;
+  static unsigned char *dat_ptr = 0;
+  static int dat_bits = 0;
+  static int last_was_acmd = 0;
+  
+  if(tb->sdclk != last_sdclk) {
+    // rising sd card clock edge
+    if(tb->sdclk) {
+      cmd_in = ((cmd_in << 1) | tb->sdcmd) & 0xffffffffffffll;
+
+      // sending 4 data bits
+      if(dat_ptr && dat_bits) {
+        if(dat_bits == 128*8 + 16 + 1 + 1) {
+          // card sends start bit
+          tb->sddat_in = 0;
+          printf("READ-4 START\n");
+        } else if(dat_bits > 1) {
+          if(dat_bits == 128*8 + 16 + 1) printf("READ DATA START\n");
+          if(dat_bits == 1) printf("READ DATA END\n");
+          int nibble = dat_bits&1;   // 1: high nibble, 0: low nibble
+          if(nibble) tb->sddat_in = (*dat_ptr >> 4)&15;
+          else       tb->sddat_in = *dat_ptr++ & 15;
+        } else
+	  tb->sddat_in = 15;
+	
+        dat_bits--;
+      }
+      
+      if(cmd_ptr && cmd_bits) {
+        int bit = 7-((cmd_bits-1) & 7);
+        tb->sdcmd_in = (*cmd_ptr & (0x80>>bit))?1:0;
+        if(bit == 7) cmd_ptr++;
+        cmd_bits--;
+      } else {      
+        tb->sdcmd_in = (cmd_out & (1ll<<47))?1:0;
+        cmd_out = (cmd_out << 1)|1;
+      }
+      
+      // check if bit 47 is 0, 46 is 1 and 0 is 1
+      if( !(cmd_in & (1ll<<47)) && (cmd_in & (1ll<<46)) && (cmd_in & (1ll<<0))) {
+        unsigned char cmd  = (cmd_in >> 40) & 0x7f;
+        unsigned long arg  = (cmd_in >>  8) & 0xffffffff;
+        unsigned char crc7 = cmd_in & 0xfe;
+	
+        // r1 reply:
+        // bit 7 - 0
+        // bit 6 - parameter error
+        // bit 5 - address error
+        // bit 4 - erase sequence error
+        // bit 3 - com crc error
+        // bit 2 - illegal command
+        // bit 1 - erase reset
+        // bit 0 - in idle state
+
+        if(crc7 == getCRC(cmd, arg)) {
+          printf("%cCMD %2d, ARG %08lx\n", last_was_acmd?'A':' ', cmd & 0x3f, arg);
+          switch(cmd & 0x3f) {
+          case 0:  // Go Idle State
+            break;
+          case 8:  // Send Interface Condition Command
+            cmd_out = reply(8, arg);
+            break;
+          case 55: // Application Specific Command
+            cmd_out = reply(55, 0);
+            break;
+          case 41: // Send Host Capacity Support
+            cmd_out = reply(63, OCR);
+            break;
+          case 2:  // Send CID
+            cid[16] = getCRC_bytes(cid, 16) | 1;  // Adjust CRC
+            cmd_ptr = cid;
+            cmd_bits = 136;
+            break;
+           case 3:  // Send Relative Address
+            cmd_out = reply(3, (RCA<<16) | 0);  // status = 0
+            break;
+          case 7:  // select card
+            cmd_out = reply(7, 0);    // may indicate busy          
+            break;
+          case 6:  // set bus width
+            printf("Set bus width to %ld\n", arg);
+            cmd_out = reply(6, 0);
+            break;
+          case 16: // set block len (should be 512)
+            printf("Set block len to %ld\n", arg);
+            cmd_out = reply(16, 0);    // ok
+            break;
+          case 17:  // read block
+            printf("Request to read single block %ld\n", arg);
+            cmd_out = reply(17, 0);    // ok
+
+            // load sector
+            {
+	      // check for floppy data request
+	      if(!fd) {
+		fd = fopen(FLOPPY_ADF, "rb");
+		if(!fd) { perror("OPEN ERROR"); exit(-1); }
+		fseek(fd, 0, SEEK_END);
+		flen = ftello(fd);
+		printf("Image size is %lld\n", flen);
+		fseek(fd, 0, SEEK_SET);
+	      }
+	      
+              fseek(fd, 512 * arg, SEEK_SET);
+              int items = fread(sector_data, 2, 256, fd);
+              if(items != 256) perror("fread()");
+
+	      // trigger minimig MFM encoding for comparison
+	      build_track_buffer(arg, sector_data);
+            }
+            {
+              unsigned short crc[4] = { 0,0,0,0 };
+              unsigned char dbits[4];
+              for(int i=0;i<512;i++) {
+                // calculate the crc for each data line seperately
+                for(int c=0;c<4;c++) {
+                  if((i & 3) == 0) dbits[c] = 0;
+                  dbits[c] = (dbits[c] << 2) | ((sector_data[i]&(0x10<<c))?2:0) | ((sector_data[i]&(0x01<<c))?1:0);      
+                  if((i & 3) == 3) crc[c] = CRC16_one(crc[c], dbits[c]);
+                }
+              }
+
+              printf("SDC CRC = %04x/%04x/%04x/%04x\n", crc[0], crc[1], crc[2], crc[3]);
+
+              // append crc's to sector_data
+              for(int i=0;i<8;i++) sector_data[512+i] = 0;
+              for(int i=0;i<16;i++) {
+                int crc_nibble =
+                  ((crc[0] & (0x8000 >> i))?1:0) +
+                  ((crc[1] & (0x8000 >> i))?2:0) +
+                  ((crc[2] & (0x8000 >> i))?4:0) +
+                  ((crc[3] & (0x8000 >> i))?8:0);
+
+                sector_data[512+i/2] |= (i&1)?(crc_nibble):(crc_nibble<<4);
+              }
+            }
+            dat_ptr = sector_data;
+            dat_bits = 128*8 + 16 + 1 + 1;
+	    break;
+            
+          default:
+            printf("unexpected command\n");
+          }
+
+          last_was_acmd = (cmd & 0x3f) == 55;
+          
+          cmd_in = -1;
+        } else
+          printf("CMD %02x, ARG %08lx, CRC7 %02x != %02x!!\n", cmd, arg, crc7, getCRC(cmd, arg));         
+      }      
+    }      
+    last_sdclk = tb->sdclk;     
+  }
+}      
+#endif
 #endif
  
 // proceed simulation by one tick
@@ -550,10 +779,54 @@ void tick(int c) {
       printf("%.3fms FDD LED = %s\n", simulation_time*1000, tb->fdd_led?"ON":"OFF");
       fdd_led = tb->fdd_led;
     }
-
+    
+    // ========================== analyze uart output (for diag rom) ===========================
+    static int tx_data = tb->uart_tx;
+    static double tx_last = simulation_time;
+    static int tx_byte = 0xffff;
+    
+    // data changed
+    if(tb->uart_tx != tx_data) {
+      // save new value      
+      tx_data = tb->uart_tx;
+      
+      // and synchronize to the arrival time of this bit
+      tx_last = simulation_time - (0.5/9600);
+    }
+    
+    // sample every 105us (9600 bit/s)
+    if(simulation_time-tx_last >= (1.0/9600)) {
+      // printf("SAMPLE %s\n", tx_data?"Hi":"LOW");
+      
+      // shift "from top" as uart sends LSB first
+      tx_byte = (tx_byte >> 1)&0x1ff;
+      if(tx_data) tx_byte |= 0x200;
+      
+      // printf("DATA %s now %02x\n", tx_data?"H":"L", tx_byte);
+      
+      // start bit?
+      if((tx_byte & 0x01) == 0) {
+	if(!(tx_byte & 0x200)) {
+	  printf("----> broken stop bit!!!!!!!!!!!\n");
+	}
+	else {
+#ifndef UART_ONLY
+	  printf("UART(%02x %c)\n", (tx_byte >> 1)&0xff, (tx_byte >> 1)&0xff);
+#else
+	  printf("%c", (tx_byte >> 1)&0xff);
+	  fflush(stdout);
+#endif
+	}
+	tx_byte = 0xffff;
+      }
+      
+      tx_last = simulation_time;
+    }
+  
 #ifdef FDC_TEST
     /* ----------------- sdc interface ---------------- */
-
+    
+#ifndef SD_EMU
     // send bytes into sdc buffer
     tb->sdc_byte_in_strobe = 0;
     static int sub_cnt = 0;
@@ -579,7 +852,8 @@ void tick(int c) {
 	}
       }
     }
-
+#endif
+    
     if(tb->clk7n_en) {    
 #ifdef FDC_RAM_TEST_VERIFY
       static int ram_cnt = 0;
@@ -609,6 +883,7 @@ void tick(int c) {
       }
 #endif
 
+#ifndef SD_EMU      
       static int sdc_rd = -1;
       if(tb->sdc_rd != sdc_rd) {
 	printf("%.3fms sdc_rd %d\n", simulation_time*1000, tb->sdc_rd);
@@ -628,7 +903,36 @@ void tick(int c) {
 	  sector_tx = tb->sdc_sector%11;
 	}
       }
+#endif
     }
+
+    // fake a disk image insertion
+    static int insert_counter = 0;
+    if(insert_counter < 1000) {
+      // check if floppy image can be mounted    
+      if(insert_counter == 100) {
+	printf("FLOPPY: Using image '%s'\n", FLOPPY_ADF);
+	if(adf_fd) {
+	  fseek(adf_fd, 0, SEEK_END);
+	  tb->sdc_img_size = ftell(adf_fd);
+ 
+	  printf("FLOPPY: Mounting df0 image size %d bytes.\n", tb->sdc_img_size);	
+	} else
+	  printf("FLOPPY: Unable to open floppy disk image. Not mounting disk.\n");
+      }
+      
+      if(tb->sdc_img_size) {    
+	if(insert_counter == 120) tb->sdc_img_mounted = 1;
+	if(insert_counter == 140) tb->sdc_img_mounted = 0;
+      }
+      insert_counter++;
+    }
+
+#ifdef SD_EMU
+    // full sd card emulation enabled
+    sd_handle();
+#endif    
+    
 #endif
     
     /* ----------------- simulate ram/kick ---------------- */
@@ -707,24 +1011,13 @@ int main(int argc, char **argv) {
 #ifdef FDC_TEST
   // check for af image size and insert it
   adf_fd = fopen(FLOPPY_ADF, "rb");
-  if(!adf_fd) { perror("open adf file"); return -1; }
-  fseek(adf_fd, 0, SEEK_END);
-  tb->sdc_img_size = ftello(adf_fd);
-  tb->sdc_img_mounted = 0;
-  tb->sdc_busy = 0;
- 
-  printf("%s image size %d\n", FLOPPY_ADF, tb->sdc_img_size);
+  if(!adf_fd) { perror("open file"); }
 #endif
   
   tb->reset = 1;
   for(int i=0;i<10;i++) {
     tick(1);
     tick(0);
-
-#ifdef FDC_TEST
-    // activate "mount" signal
-    tb->sdc_img_mounted = (i>4 && i<8)?1:0;
-#endif
   }
   
   tb->reset = 0;

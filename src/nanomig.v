@@ -32,6 +32,10 @@ module nanomig (
    input [1:0]	 kbd_mouse_type,
    input [7:0]	 kbd_mouse_data,
    input [7:0]	 joystick,
+
+   // UART/RS232 for e.g. DiagROM or MIDI
+   output	 uart_tx,
+   input	 uart_rx,
 		 
    // Interface MiSTeryNano sd card interface. This very simple connection allows the core
    // to request sectors from within a OSD selected image file
