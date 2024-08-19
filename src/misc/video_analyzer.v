@@ -10,7 +10,8 @@ module video_analyzer
  input		  clk,
  input		  hs,
  input		  vs,
- output reg       pal,     // pal mode detected
+ output reg       pal,       // pal mode detected
+ output reg       interlace, // interlaces modes have one line less
  output reg	  vreset
 );
    
@@ -47,6 +48,7 @@ always @(posedge clk) begin
           // check if image height has changed during last cycle
           vcntL <= vcnt;
           if(vcntL != vcnt) begin
+	     interlace <= !vcnt[0];	     
 	     if(vcnt == 11'd525) pal <= 1'b0;
 	     if(vcnt == 11'd625) pal <= 1'b1;
 	     

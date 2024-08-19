@@ -409,6 +409,10 @@ nanomig nanomig
 
  .audio_left(audio_left),
  .audio_right(audio_right),
+
+ // uart interface 
+ .uart_rx(midi_in),
+ .uart_tx(midi_out),
  
  // keyboard & mouse				 
  .mouse_buttons(mouse_buttons), // mouse buttons
@@ -612,13 +616,14 @@ end
 wire [2:0] tmds;
 wire tmds_clock;
 
-wire vreset, vpal;
+wire vreset, vpal, interlace;
 video_analyzer video_analyzer (
-    .clk    ( clk_28m ),
-    .hs     ( hs_n    ),
-    .vs     ( vs_n    ),
-    .pal    ( vpal    ),
-    .vreset ( vreset  )
+    .clk       ( clk_28m   ),
+    .hs        ( hs_n      ),
+    .vs        ( vs_n      ),
+    .pal       ( vpal      ),
+    .interlace ( interlace ),
+    .vreset    ( vreset    )
 );
    
 hdmi #(
@@ -634,6 +639,7 @@ hdmi #(
   .tmds_clock(tmds_clock),
 
   .pal_mode(vpal),
+  .interlace(interlace),
   .reset(vreset),    // signal to synchronize HDMI
 
   .rgb( { video_red, 2'b00, video_green, 2'b00, video_blue, 2'b00 } )
