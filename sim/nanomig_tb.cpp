@@ -1,5 +1,5 @@
 /*
-  nanomig_aga_tb.cpp 
+  nanomig_tb.cpp 
 
   NanoMig verilator environment. This is being used to test certain
   aspects of NanoMig in verilator. Since Minimig itself is pretty
@@ -11,13 +11,19 @@
   certain things. It's not meant to be nice or clean. But maybe
   someone find this useful anyway.
  */
+ 
 
 #ifdef VIDEO
 #include <SDL.h>
 #include <SDL_image.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
 // one frame is 20.0326ms
 #endif
 
+#include "ini_parser.h"
 #include "Vnanomig_tb.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
@@ -31,7 +37,6 @@
 
 #ifdef FDC_TEST
 #define FLOPPY_ADF  "df0.adf"
-
 // #define FDC_RAM_TEST_VERIFY   // verify track data against minimigs original firmware fdd.c. only works with ram_test rom
 FILE *adf_fd = NULL;
 #endif
@@ -240,12 +245,23 @@ void capture_video(void) {
 	  char name[32];
 	  sprintf(name, "screenshots/frame%04d.png", frame);
 	  save_texture(sdl_renderer, sdl_texture, name);
+	  //printf ("simulation_time: %.3f seconds\n", (simulation_time));
+	  if ((simulation_time) > g_screenshot_wait_time_seconds + g_screenshot_wait_time_seconds_offset) {
+	    if (g_screenshot_taken != true && g_screenshot_name != "") {
+	      std::string full_screenshot_name = g_screenshot_dir + "/" +  g_screenshot_name + ".png";
+	      save_texture(sdl_renderer, sdl_texture, full_screenshot_name.c_str());
+	      g_screenshot_taken = true;
+          //std::string str;
+          //std::getline(std::cin, str);
+          exit(0);
+	    }
+	  }
 	}
-      }
+  }
 	
-      // process SDL events
-      SDL_Event event;
-      while( SDL_PollEvent( &event ) ){
+  // process SDL events
+  SDL_Event event;
+  while( SDL_PollEvent( &event ) ){
 	if(event.type == SDL_QUIT)
 	  sdl_cancelled = 1;
 	
@@ -282,20 +298,23 @@ static uint64_t GetTickCountMs() {
 
 unsigned short ram[8*512*1024];  // 8 Megabytes
 
-void load_kick(void) {
-  printf("Loading kick into last 512k of 8MB ram\n");
-  FILE *fd = fopen(KICK, "rb");
+void load_kick(const std::string &path) {
+  std::cout << "Loading kick into last 512k of 8MB ram from " << path << std::endl;
+  FILE *fd = fopen(path.c_str(), "rb");
   if(!fd) { perror("load kick"); exit(-1); }
-  
+
   int len = fread(ram+(0x780000/2), 1024, 512, fd);
   if(len != 512) {
     if(len != 256) {
-      printf("256/512k kick read failed\n");
+      std::cerr << "256/512k kick read failed\n";
     } else {
       // just read a second image
       fseek(fd, 0, SEEK_SET);
       len = fread(ram+(0x780000/2)+128*1024, 1024, 256, fd);
-      if(len != 256) { printf("2nd read failed\n"); exit(-1); }
+      if(len != 256) {
+        std::cerr << "2nd read failed\n";
+        exit(-1);
+      }
     }
   }
   fclose(fd);
@@ -694,7 +713,7 @@ void sd_handle()  {
             {
 	      // check for floppy data request
 	      if(!fd) {
-		fd = fopen(FLOPPY_ADF, "rb");
+		fd = fopen(g_adf_path.c_str(), "rb");
 		if(!fd) { perror("OPEN ERROR"); exit(-1); }
 		fseek(fd, 0, SEEK_END);
 		flen = ftello(fd);
@@ -911,7 +930,7 @@ void tick(int c) {
     if(insert_counter < 1000) {
       // check if floppy image can be mounted    
       if(insert_counter == 100) {
-	printf("FLOPPY: Using image '%s'\n", FLOPPY_ADF);
+	printf("FLOPPY: Using image '%s'\n", g_adf_path.c_str());
 	if(adf_fd) {
 	  fseek(adf_fd, 0, SEEK_END);
 	  tb->sdc_img_size = ftell(adf_fd);
@@ -988,6 +1007,10 @@ void tick(int c) {
 }
 
 int main(int argc, char **argv) {
+  g_rom_path = KICK;
+  g_adf_path = FLOPPY_ADF;
+  parse_command_line_args(argc, argv); // from ini_parser.h
+    
   // Initialize Verilators variables
   Verilated::commandArgs(argc, argv);
   // Verilated::debug(1);
@@ -997,7 +1020,7 @@ int main(int argc, char **argv) {
   trace->spTrace()->set_time_resolution("1ps");
   simulation_time = 0;
   
-  load_kick();
+  load_kick(g_rom_path);
 
 #ifdef VIDEO
   init_video();
@@ -1010,7 +1033,7 @@ int main(int argc, char **argv) {
   
 #ifdef FDC_TEST
   // check for af image size and insert it
-  adf_fd = fopen(FLOPPY_ADF, "rb");
+  adf_fd = fopen(g_adf_path.c_str(), "rb");
   if(!adf_fd) { perror("open file"); }
 #endif
   
