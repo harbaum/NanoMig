@@ -29,7 +29,7 @@ reg [2:0] rst_cnt = 0; //reset timer SHOULD BE CLEARED BY CONFIG
 always @(posedge clk) begin
 	if (clk7_en) begin
 		if (mrst) rst_cnt <= 0;
-		else if (~rst_cnt[2] && cnt) rst_cnt <= rst_cnt + 3'd1;
+		else if (~rst_cnt[2] /* && cnt */) rst_cnt <= rst_cnt + 3'd1;
 		reset <= ~rst_cnt[2];
 	end
 end
