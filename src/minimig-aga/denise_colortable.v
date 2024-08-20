@@ -29,20 +29,19 @@ wire [ 8-1:0] select_xored = select;// ^ bplxor;
 // color ram
 wire [ 8-1:0] wr_adr = {bank[2:0], reg_address_in[5:1]};
 wire          wr_en  = (reg_address_in[8:6] == COLORBASE[8:6]) && clk7_en && !rdram;
-wire [32-1:0] wr_dat = {4'b0, data_in[11:0], 4'b0, data_in[11:0]};
-wire [ 4-1:0] wr_bs  = loct ? 4'b0011 : 4'b1111;
+wire [12-1:0] wr_dat = data_in[11:0];
+wire [ 2-1:0] wr_ws  = loct ? 2'b01 : 2'b11;
 wire [ 8-1:0] rd_adr = rdram ? wr_adr : ehb_en ? {3'b000, select_xored[4:0]} : select_xored;
-wire [32-1:0] rd_dat;
+wire [24-1:0] rd_dat;
 reg           ehb_sel;
 
 // color lut
 denise_colortable_ram_mf clut
 (
   .clock      (clk    ),
-  .enable     (1'b1   ),
   .wraddress  (wr_adr ),
   .wren       (wr_en  ),
-  .byteena_a  (wr_bs  ),
+  .ena_a      (wr_ws  ),
   .data       (wr_dat ),
   .rdaddress  (rd_adr ),
   .q          (rd_dat )
@@ -54,7 +53,7 @@ always @ (posedge clk) begin
 end
 
 // pack color values
-wire [12-1:0] color_hi = rd_dat[12-1+16:0+16];
+wire [12-1:0] color_hi = rd_dat[12-1+12:0+12];
 wire [12-1:0] color_lo = rd_dat[12-1+ 0:0+ 0];
 wire [24-1:0] color = {color_hi[11:8], color_lo[11:8], color_hi[7:4], color_lo[7:4], color_hi[3:0], color_lo[3:0]};
 
