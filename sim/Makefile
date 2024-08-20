@@ -36,6 +36,9 @@ VERILATOR_FILES=verilated.cpp verilated_vcd_c.cpp verilated_threads.cpp
 HDL_FILES=$(TB).v $(MINIMIG_FILES:%=$(MINIMIG_DIR)/%) $(FX68K_FILES:%=$(FX68K_DIR)/%)
 HDL_FILES+=$(MISC_FILES:%=$(MISC_DIR)/%) 
 
+# Include ini_parser.cpp in the list of C++ source files
+CPP_FILES=$(TB).cpp ini_parser.cpp
+
 EXTRA_CFLAGS = `sdl2-config --cflags` -DVIDEO
 EXTRA_LDFLAGS = `sdl2-config --libs` -lSDL2_image
 
@@ -46,15 +49,20 @@ endif
 
 all: $(PRJ)
 
-$(PRJ): $(TB).cpp ${HDL_FILES} Makefile
-	verilator -O3 -Wno-fatal --no-timing --trace --threads 1 --trace-underscore  -top-module $(PRJ)_tb $(VERILATOR_FLAGS) -cc ${HDL_FILES} --exe $(TB).cpp -o ../$(PRJ) -CFLAGS "${EXTRA_CFLAGS}" -LDFLAGS "${EXTRA_LDFLAGS}"
+$(PRJ): ${CPP_FILES} ${HDL_FILES} Makefile
+	verilator -O3 -Wno-fatal --no-timing --trace --threads 1 --trace-underscore  -top-module $(PRJ)_tb $(VERILATOR_FLAGS) -cc ${HDL_FILES} --exe ${CPP_FILES} -o ../$(PRJ) -CFLAGS "${EXTRA_CFLAGS}" -LDFLAGS "${EXTRA_LDFLAGS}"
 	make -j -C ${OBJ_DIR} -f V$(PRJ)_tb.mk
 
 $(PRJ).vcd: $(PRJ)
 	./$(PRJ)
 
+# Run the simulation with an optional .ini file
 run: $(PRJ)
-	./$(PRJ)
+	@if [ -z "$(INI)" ]; then \
+		./$(PRJ); \
+	else \
+		./$(PRJ) ini=$(INI) screenshot_dir=$(SCREENSHOT_DIR); \
+	fi
 
 wave: $(PRJ).vcd
 	gtkwave $(PRJ).gtkw
