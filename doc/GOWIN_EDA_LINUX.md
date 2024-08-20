@@ -7,7 +7,7 @@ Tested with:
 
 Tested on:
   - Debian Testing/trixie
-  - Ubuntu 22.04
+  - Ubuntu 24.04
 
 With some adaptions the instructions described here should also work on other Linux distributions.
 
