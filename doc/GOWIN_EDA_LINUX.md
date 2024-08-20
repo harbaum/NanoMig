@@ -124,6 +124,19 @@ Combined `LD_PRELOAD` to start `IDE/bin/gw_ide`:
 
     Try again. Usually it works on the second run.
 
+4.  Programmer crashes when installed globally (by root user)
+
+    **Error message on command line:**
+
+    `PermissionError: [Errno 13] Permission denied: './data/output/dev.uidb'`
+
+    **Fix:**
+
+    Give all users read/write permissions on the offending directory
+    ```
+    sudo chmod -R og+rwx Programmer_V1.9.10.1/bin/data/output
+    ```
+
 ## Miscellaneous useful information
 
 * [Make sure the programmer download frequency is equal or lower than 2.5MHz](https://wiki.sipeed.com/hardware/en/tang/Tang-Nano-Doc/questions.html#Download-frequency)
