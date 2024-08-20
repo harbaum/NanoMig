@@ -430,6 +430,8 @@ wire        rom_readonly; 		//writeprotect $f8-ff in gary.v
 
 wire        reset = sys_reset | ~_cpu_reset_in; // both tg68k and minimig_syscontrol hold the reset signal for some clicks
 
+reg ovl; //kickstart overlay enable
+
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 
@@ -895,7 +897,6 @@ minimig_syscontrol CONTROL1
 	.reset(sys_reset)
 );
 
-reg ovl; //kickstart overlay enable
 always @(posedge clk) begin
 	if(~_cpu_reset | ~_cpu_reset_in)       ovl <= 1;
 	else if(sel_cia_a & (cpu_lwr|cpu_hwr)) ovl <= 0;

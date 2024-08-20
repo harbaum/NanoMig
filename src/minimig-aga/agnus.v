@@ -229,6 +229,8 @@ end
 reg [12:0] dmacon;
 reg [15:0] dmaconr;      //dma control read register
 
+wire        blit_busy;       //blitter busy status
+
 //dma control register read
 always @(*) begin
 	if (reg_address[8:1]==DMACONR[8:1]) dmaconr[15:0] = {1'b0, blit_busy, blit_zero, dmacon[12:0]};
@@ -262,9 +264,13 @@ wire ena_cop = ~dma_bpl;
 //since blitter has the lowest priority and can use any dma slot (even and odd) all other dma channels block blitter activity
 wire ena_blt = ~(dma_ref | dma_dsk | dma_aud | dma_spr | dma_bpl | dma_cop) && bls_cnt!=BLS_CNT_MAX ? 1'b1 : 1'b0;
 
-//--------------------------------------------------------------------------------------
-
 wire  dma_ref;        //refresh dma slots
+wire  [8:0] hpos;      //alternative horizontal beam counter
+wire [10:0] vpos;      //vertical beam counter
+wire        vbl;       //JB: vertical blanking
+wire        vblend;    //JB: last line of vertical blanking
+
+//--------------------------------------------------------------------------------------
 
 agnus_refresh ref1
 (
@@ -405,7 +411,6 @@ always @(posedge clk) if (clk7_en) begin
 		else if (bls_cnt[1:0] != BLS_CNT_MAX) bls_cnt <= bls_cnt + 2'b01;
 end
 
-wire        blit_busy;       //blitter busy status
 wire        blit_zero;       //blitter zero status
 wire        req_blt;         //blitter dma request
 wire [20:1] address_blt;     //blitter dma engine chip address out
@@ -437,10 +442,6 @@ agnus_blitter bl1
 
 //--------------------------------------------------------------------------------------
 
-wire  [8:0] hpos;      //alternative horizontal beam counter
-wire [10:0] vpos;      //vertical beam counter
-wire        vbl;       //JB: vertical blanking
-wire        vblend;    //JB: last line of vertical blanking
 wire [15:0] data_bmc;  //beam counter data out
 
 //instantiate beam counters
