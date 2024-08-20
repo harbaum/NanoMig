@@ -23,13 +23,13 @@
 	<File path="nanomig.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/amiga_clk.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/cpu_wrapper.v" type="file.verilog" enable="1"/>
-	<File path="minimig-aga/minimig.v " type="file.verilog" enable="1"/>
+	<File path="minimig-aga/minimig.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/ciaa.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/ciab.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/cia_int.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/cia_timera.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/cia_timerb.v" type="file.verilog" enable="1"/>
-	<File path="minimig-aga/cia_timerd.v " type="file.verilog" enable="1"/>
+	<File path="minimig-aga/cia_timerd.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/paula.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/paula_uart.v" type="file.verilog" enable="1"/>
 	<File path="minimig-aga/paula_audio_channel.v" type="file.verilog" enable="1"/>
