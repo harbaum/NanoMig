@@ -97,7 +97,8 @@ pll_142m pll_hdmi (
 
 reg clk_71m;
 always @(posedge clk_pixel_x5)
-    clk_71m <= !clk_71m;
+  if(!pll_lock) clk_71m <= 1'b0;   
+   else         clk_71m <= !clk_71m;
 
 wire clk_pixel;
 Gowin_CLKDIV clk_div_5 (
