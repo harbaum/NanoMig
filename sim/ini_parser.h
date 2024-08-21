@@ -10,6 +10,7 @@ extern bool g_screenshot_taken;
 extern std::string g_screenshot_name;
 extern std::string g_adf_path;
 extern std::string g_screenshot_dir;
+extern std::string g_chipset;
 
 // Functions to parse command-line arguments and INI files
 void parse_command_line_args(int argc, char **argv);

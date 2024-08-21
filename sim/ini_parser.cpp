@@ -11,6 +11,8 @@ bool g_screenshot_taken = false;
 std::string g_screenshot_name = "";
 std::string g_screenshot_dir = ".";  // Default to current directory
 std::string g_adf_path = "df0.adf";
+std::string g_config = "";
+std::string g_chipset = "OCS"; // use OCS as default 
 
 
 // Function to parse command-line arguments
@@ -51,8 +53,15 @@ void parse_ini_file(const std::string &file_path) {
             iss >> subcommand;
 
             if (subcommand == "setup") {
-                std::string config;
-                iss >> config >> g_rom_path;
+                iss >> g_config >> g_rom_path;
+                // Determine the chipset based on the configuration
+                if (g_config.find("OCS") != std::string::npos) {
+                    g_chipset = "OCS";
+                } else if (g_config.find("ECS") != std::string::npos) {
+                    g_chipset = "ECS";
+                } else if (g_config.find("PLUS") != std::string::npos) {
+                    g_chipset = "PLUS";
+                }
             } else if (subcommand == "run") {
                 iss >> g_adf_path;
             }
@@ -77,6 +86,8 @@ void parse_ini_file(const std::string &file_path) {
 
     // Print the loaded values
     std::cout << "Loaded values from " << file_path << ":\n";
+    std::cout << "Configuration: " << g_config << "\n";
+    std::cout << "Chipset: " << g_chipset << "\n"; // Print the chipset value
     std::cout << "ROM Path: " << g_rom_path << "\n";
     std::cout << "ADF Path: " << g_adf_path << "\n";
     std::cout << "Wait Time: " << g_screenshot_wait_time_seconds << " seconds\n";

@@ -17,6 +17,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <iostream>
+#include <bitset>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -1030,6 +1031,20 @@ int main(int argc, char **argv) {
   tb = new Vnanomig_tb;
   tb->trace(trace, 99);
   trace->open("nanomig.vcd");
+  
+// Determine the chipset configuration
+  uint8_t chipset_config = 0;
+
+  if (g_chipset == "OCS") {
+    chipset_config = 0b000000; // Set OCS configuration
+  } else if (g_chipset == "ECS") {
+    chipset_config = 0b001000; // Set ECS configuration
+  }
+  std::cout << "chipset: " << g_chipset << "\n";
+  std::cout << "chipset_config: " << std::bitset<6>(chipset_config) << "\n";
+  // Assign the chipset_config to the Verilog module's input
+  tb->chipset_config = chipset_config;
+
   
 #ifdef FDC_TEST
   // check for af image size and insert it
