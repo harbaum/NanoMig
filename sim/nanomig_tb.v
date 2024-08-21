@@ -16,6 +16,8 @@ module nanomig_tb
    output	 fdd_led,
    input	 trigger, 
    
+   input [5:0]    chipset_config,
+   
    // video
    output	 hs_n,
    output	 vs_n,
@@ -100,6 +102,8 @@ nanomig nanomig (
 
 		 .pwr_led(pwr_led),
 		 .fdd_led(fdd_led),
+
+		 .chipset_config(chipset_config),
 
 		 .hs(hs_n),
 		 .vs(vs_n),
