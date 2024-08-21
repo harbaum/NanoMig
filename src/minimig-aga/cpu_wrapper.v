@@ -24,6 +24,19 @@
 //--------------------------------------------------------------------------//
 //--------------------------------------------------------------------------//
 
+//`define ENABLE_TG68K
+`define ENABLE_FX68K
+
+`define TG68K_A24      // limit address space of TG68K to 24 bit
+
+// if only one CPU is enabled, then this is being used for all
+// configurations. This e.g. allows the tg68k to be used in plain 68000 mode as well
+`ifdef ENABLE_TG68K
+ `ifdef ENABLE_FX68K
+  `define CPU_SWITCHABLE
+ `endif
+`endif
+
 module cpu_wrapper
 (
 	input             reset,
@@ -73,6 +86,8 @@ module cpu_wrapper
 	output reg  [3:0] cacr,
 	output reg [31:0] nmi_addr
 );
+
+wire cpu_req = (cpustate != 1);
 
 assign ramsel       = cpu_req & ~sel_nmi_vector & (sel_zram | sel_chipram | sel_kickram | sel_dd | sel_rtg);
 assign ramshared    = sel_dd;
@@ -138,10 +153,11 @@ reg  [15:0] chip_data;
 reg  [31:0] vbr;
 
 always @* begin
-	if(cpucfg[1]) begin
-`ifdef ENABLE_TG68K
+`ifdef CPU_SWITCHABLE
+   if( cpucfg[1] ) begin
+`endif
+`ifdef ENABLE_TG68K      
 		cpu_dout     = cpu_dout_p;
-		cpu_addr     = cpu_addr_p;
 		cpustate     = cpustate_p;
 		cacr         = cacr_p;
 		vbr          = vbr_p;
@@ -156,11 +172,21 @@ always @* begin
 		chip_addr    = cpu_addr_p[23:1];
 		chip_din     = cpu_dout_p;
 		chip_data    = chipdout_i;
+`ifdef TG68K_A24
+		cpu_addr     = { 8'h00, cpu_addr_p[23:0] };
+		fastchip_sel = 0;
+		fastchip_lw  = 0;
+`else
+		cpu_addr     = cpu_addr_p;
 		fastchip_sel = cpu_req & !cpu_addr_p[31:24];
 		fastchip_lw  = longword;
 `endif
+`endif
+`ifdef CPU_SWITCHABLE
 	end
 	else begin
+`endif
+ `ifdef ENABLE_FX68K
 		cpu_dout     = cpu_dout_o;
 		cpu_addr     = {cpu_addr_o,1'b0};
 		cpustate     = as_o ? 2'b01 : ~{wr_o,wr_o};
@@ -179,9 +205,12 @@ always @* begin
 		chip_data    = chip_dout;
 		fastchip_sel = 0;
 		fastchip_lw  = 0;
+`endif
+`ifdef CPU_SWITCHABLE
 	end
+`endif
 end
-`ifdef ENABLE_TG68K
+
 wire [15:0] cpu_dout_p;
 wire [31:0] cpu_addr_p;
 wire  [1:0] cpustate_p;
@@ -192,8 +221,14 @@ wire        uds_p;
 wire        lds_p;
 wire        reset_out_p;
 wire        longword;
+reg [2:0]   cpu_ipl;
+reg         chipready;
 
+`ifdef ENABLE_TG68K
 TG68KdotC_Kernel
+`ifndef VERILATOR
+// verilator runs the verilog translated variant which doesn't support configuration but
+// is hard coded for full configurability (all configs set to 2)
 #(
 	.sr_read(2),        // 0=>user,   1=>privileged,    2=>switchable with CPU(0)
 	.vbr_stackframe(2), // 0=>no,     1=>yes/extended,  2=>switchable with CPU(0)
@@ -202,10 +237,15 @@ TG68KdotC_Kernel
 	.div_mode(2),       // 0=>16Bit,  1=>32Bit,         2=>switchable with CPU(1),  3=>no DIV,
 	.bitfield(2)        // 0=>no,     1=>yes,           2=>switchable with CPU(1)
 )
+`endif
 cpu_inst_p
 (
   .clk(clk),
+`ifdef ENABLE_FX68K
+  .nreset(reset && cpucfg[1]),
+`else
   .nreset(reset),
+`endif
   .clkena_in(~cpu_req | chipready | ramready | fastchip_ready),
   .data_in(cpu_din),
   .ipl(cpu_ipl),
@@ -224,8 +264,6 @@ cpu_inst_p
   .cacr_out(cacr_p),
   .vbr_out(vbr_p)
 );
-`else
-wire        reset_out_p = 1'b1;
 `endif
 
 wire [15:0] cpu_dout_o;
@@ -237,14 +275,20 @@ wire        uds_o;
 wire        lds_o;
 wire        reset_out_o;
 
+`ifdef ENABLE_FX68K
 fx68k cpu_inst_o
 (
 	.clk(clk),
 	.enPhi1(ph1),
 	.enPhi2(ph2),
 
+`ifdef ENABLE_TG68K
+	.extReset(~reset && ~cpucfg[1]),
+	.pwrUp(~reset && ~cpucfg[1]),
+`else
 	.extReset(~reset),
 	.pwrUp(~reset),
+`endif
 	.oRESETn(reset_out_o),
 `ifndef VERILATOR
 	.HALTn(1),
@@ -270,8 +314,7 @@ fx68k cpu_inst_o
 	.oEdb(cpu_dout_o),
 	.eab(cpu_addr_o)
 );
-
-wire cpu_req = (cpustate != 1);
+`endif
 
 wire cchip = turbochip_d & (!cpustate | dcache_d);
 wire ckick = turbokick_d & (!cpustate | dcache_d);
@@ -403,7 +446,6 @@ always @(posedge clk) begin
 end
 
 reg       chipreq;
-reg [2:0] cpu_ipl;
 always @(posedge clk) begin
 	chipreq <= cpu_req & ~ramsel & ~fastchip_selack;
 	cpu_ipl <= ipl_i;
@@ -415,7 +457,6 @@ always @(posedge clk) begin
 	ph2n <= ph2;
 end
 
-reg        chipready;
 reg [15:0] chipdout_i;
 reg  [2:0] ipl_i;
 reg        c_as,c_rw,c_uds,c_lds;

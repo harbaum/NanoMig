@@ -33,7 +33,7 @@ endif
 VERILATOR_DIR=/usr/local/share/verilator/include
 VERILATOR_FILES=verilated.cpp verilated_vcd_c.cpp verilated_threads.cpp
 
-HDL_FILES=$(TB).v $(MINIMIG_FILES:%=$(MINIMIG_DIR)/%) $(FX68K_FILES:%=$(FX68K_DIR)/%)
+HDL_FILES=$(TB).v $(MINIMIG_FILES:%=$(MINIMIG_DIR)/%) $(FX68K_FILES:%=$(FX68K_DIR)/%) TG68KdotC_Kernel.v
 HDL_FILES+=$(MISC_FILES:%=$(MISC_DIR)/%) 
 
 # Include ini_parser.cpp in the list of C++ source files

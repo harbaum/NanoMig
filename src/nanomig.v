@@ -175,12 +175,11 @@ wire	    ram_sel;
 wire	    ram_lds;
 wire	    ram_uds;
 wire [15:0] ram_din;
-wire [15:0] ram_dout;
-//TH wire [15:0] ram_dout  = zram_sel ? ram_dout2  : ram_dout1;
-//TH wire        ram_ready = zram_sel ? ram_ready2 : ram_ready1;
-//TH wire        zram_sel  = |ram_addr[28:26];
 wire        ramshared;
 
+wire [1:0] cpucfg = 2'b00;     // 00 = 68000, 01=68010, 11=68020
+wire [2:0] cachecfg = 3'b000;  // no turbo chip and kick, no caches   
+   
 cpu_wrapper cpu_wrapper
 (
 	.reset        (cpu_rst         ),
@@ -206,7 +205,7 @@ cpu_wrapper cpu_wrapper
 	.fastchip_uds    (  ),
 	.fastchip_rnw    (  ),
 	.fastchip_selack (  ),
-	.fastchip_ready  (  ),
+	.fastchip_ready  (1'b0 ),
 	.fastchip_lw     (  ),
 
 	.cpucfg       (cpucfg          ),
@@ -218,9 +217,9 @@ cpu_wrapper cpu_wrapper
 	.ramaddr      (ram_addr        ),
 	.ramlds       (ram_lds         ),
 	.ramuds       (ram_uds         ),
-	.ramdout      (ram_dout        ),
+	.ramdout      (                ),
 	.ramdin       (ram_din         ),
-	.ramready     (/*TH ram_ready */      ),
+	.ramready     (1'b0            ),
 	.ramshared    (ramshared       ),
 
 	//custom CPU signals

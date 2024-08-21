@@ -74,11 +74,14 @@ add_file misc/video_analyzer.v
 add_file misc/sd_card.v
 add_file misc/sd_rw.v
 add_file misc/sdcmd_ctrl.v
+add_file tg68k/TG68K_Pack.vhd
+add_file tg68k/TG68K.vhd
+add_file tg68k/TG68K_ALU.vhd
+add_file tg68k/TG68KdotC_Kernel.vhd
 add_file tang/nano20k/flash_dspi.v
 add_file tang/nano20k/gowin_clkdiv/gowin_clkdiv.v
 add_file tang/nano20k/gowin_rpll/pll_142m.v
 add_file tang/nano20k/gowin_dpb/sector_dpram.v
-# add_file tang/nano20k/denise_colortable_ram_mf.v
 add_file tang/nano20k/top.sv
 add_file tang/nano20k/sdram.v
 add_file tang/nano20k/nanomig.cst
