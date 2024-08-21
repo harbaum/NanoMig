@@ -863,6 +863,7 @@ gary GARY1
 	.bootrom(bootrom)
 );
 
+`ifdef ENABLE_GAYLE
 gayle GAYLE1
 (
 	.clk(clk),
@@ -886,6 +887,7 @@ gayle GAYLE1
 
 	.led(hdd_led)
 );
+`endif
 
 //instantiate system control
 minimig_syscontrol CONTROL1 
@@ -956,7 +958,9 @@ assign int6_toccata = 1'b0;
 //data multiplexer
 assign cpu_data_in[15:0]= gary_data_out[15:0]
 							 | cia_data_out[15:0]
+`ifdef ENABLE_GAYLE
 							 | gayle_data_out[15:0]
+`endif
 `ifdef ENABLE_CART
 							 | cart_data_out[15:0]
 `endif
