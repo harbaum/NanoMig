@@ -18,6 +18,13 @@ module hdmi
     // range (0-255).
     parameter bit IT_CONTENT = 1'b1,
 
+    // A true HDMI signal sends auxiliary data (i.e. audio, preambles) which prevents it from being parsed by DVI signal sinks.
+    // HDMI signal sinks are fortunately backwards-compatible with DVI signals.
+    // Enable this flag if the output should be a DVI signal. You might want to do this to reduce resource usage or if you're only outputting video.
+    parameter bit DVI_OUTPUT = 1'b0,
+
+    // **All parameters below matter ONLY IF you plan on sending auxiliary data (DVI_OUTPUT == 1'b0)**
+
     // As specified in Section 7.3, the minimal audio requirements are met: 16-bit or more L-PCM audio at 32 kHz, 44.1 kHz, or 48 kHz.
     // See Table 7-4 or README.md for an enumeration of sampling frequencies supported by HDMI.
     // Note that sinks may not support rates above 48 kHz.
@@ -132,6 +139,7 @@ logic [5:0] control_data = 6'd0;
 logic [11:0] data_island_data = 12'd0;
 
 generate
+    if (!DVI_OUTPUT)
     begin: true_hdmi_output
         logic video_guard = 1;
         logic video_preamble = 0;
@@ -225,6 +233,24 @@ generate
                 data_island_data[3] <= cx != 0;
                 data_island_data[2] <= packet_data[0];
                 data_island_data[1:0] <= {vsync, hsync};
+            end
+        end
+    end
+    else // DVI_OUTPUT = 1
+    begin
+        always_ff @(posedge clk_pixel)
+        begin
+            if (reset)
+            begin
+                mode <= 3'd0;
+                video_data <= 24'd0;
+                control_data <= 6'd0;
+            end
+            else
+            begin
+                mode <= video_data_period ? 3'd1 : 3'd0;
+                video_data <= rgb;
+                control_data <= {4'b0000, {vsync, hsync}}; // ctrl3, ctrl2, ctrl1, ctrl0, vsync, hsync
             end
         end
     end
