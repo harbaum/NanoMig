@@ -2,21 +2,29 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm> // Include for std::string::replace
 
-// Initialize global variables
-std::string g_rom_path = "kick13.rom";
-int g_screenshot_wait_time_seconds = 0;
-int g_screenshot_wait_time_seconds_offset = 7; // seems Verilator Amiga takes longer to boot than vAmiga
-bool g_screenshot_taken = false;
-std::string g_screenshot_name = "";
-std::string g_screenshot_dir = ".";  // Default to current directory
-std::string g_adf_path = "df0.adf";
-std::string g_config = "";
-std::string g_chipset = "OCS"; // use OCS as default 
+int g_vAmigaTS_screenshot_wait_time_seconds = 0;
+int g_vAmigaTS_screenshot_wait_time_seconds_offset = 0;
+std::string g_vAmigaTS_screenshot_name = "";
+std::string g_vAmigaTS_screenshot_dir = ".";
 
+// Function to check and replace "_ocs.adf" or "_ecs.adf" with ".adf"
+void check_and_replace_adf_path(vAmigaTSConfig &config) {
+    size_t ocs_pos = config.adf_path.find("_ocs.adf");
+    if (ocs_pos != std::string::npos) {
+        config.adf_path.replace(ocs_pos, 8, ".adf");
+    }
 
+    size_t ecs_pos = config.adf_path.find("_ecs.adf");
+    if (ecs_pos != std::string::npos) {
+        config.adf_path.replace(ecs_pos, 8, ".adf");
+    }
+}
 // Function to parse command-line arguments
-void parse_command_line_args(int argc, char **argv) {
+vAmigaTSConfig parse_command_line_args(int argc, char **argv) {
+    vAmigaTSConfig config; // Create a local instance of vAmigaTSConfig
+
     for (int arg_pos = 1; arg_pos < argc; arg_pos++) {
         std::string arg = argv[arg_pos];
 
@@ -24,23 +32,26 @@ void parse_command_line_args(int argc, char **argv) {
         if (arg.rfind("ini=", 0) == 0) {
             std::string config_file = arg.substr(4);
             std::cout << "Config file detected: " << config_file << std::endl;
-            parse_ini_file(config_file);
+            parse_ini_file(config_file, config); // Pass the config object
         } 
         // Check if the argument starts with "screenshot_dir="
         else if (arg.rfind("screenshot_dir=", 0) == 0) {
-            g_screenshot_dir = arg.substr(15);
-            std::cout << "Screenshot directory detected: " << g_screenshot_dir << std::endl;
+            config.screenshot_dir = arg.substr(15);
+            std::cout << "Screenshot directory detected: " << config.screenshot_dir << std::endl;
         }
     }
+
+    return config; // Return the populated config object
 }
 
 // Function to parse the INI file
-void parse_ini_file(const std::string &file_path) {
+void parse_ini_file(const std::string &file_path, vAmigaTSConfig &config) {
     std::ifstream file(file_path);
     if (!file.is_open()) {
         std::cerr << "Failed to open .ini file: " << file_path << std::endl;
         return;
     }
+	config.config_file_name = file_path;
 
     std::string line;
     while (std::getline(file, line)) {
@@ -53,23 +64,32 @@ void parse_ini_file(const std::string &file_path) {
             iss >> subcommand;
 
             if (subcommand == "setup") {
-                iss >> g_config >> g_rom_path;
+                iss >> config.config_string >> config.rom_path;
                 // Determine the chipset based on the configuration
-                if (g_config.find("OCS") != std::string::npos) {
-                    g_chipset = "OCS";
-                } else if (g_config.find("ECS") != std::string::npos) {
-                    g_chipset = "ECS";
-                } else if (g_config.find("PLUS") != std::string::npos) {
-                    g_chipset = "PLUS";
+                if (config.config_string.find("OCS") != std::string::npos) {
+                    config.chipset = "OCS";
+                } else if (config.config_string.find("ECS") != std::string::npos) {
+                    config.chipset = "ECS";
+                } else if (config.config_string.find("PLUS") != std::string::npos) {
+                    config.chipset = "PLUS";
                 }
             } else if (subcommand == "run") {
-                iss >> g_adf_path;
+                iss >> config.adf_path;
+                check_and_replace_adf_path(config); // Call the function after setting adf_path
+            }
+        } else if (command == "cpu") {
+            std::string subcommand;
+            iss >> subcommand;
+            
+            if (subcommand == "set") {
+                std::string revision;
+                iss >> revision >> config.cpu_revision;
             }
         } else if (command == "wait") {
             int time;
             std::string unit;
             if (iss >> time >> unit) {
-                g_screenshot_wait_time_seconds = time;
+                config.screenshot_wait_time_seconds = time;
             } else {
                 std::cerr << "Error: Invalid format in wait command.\n";
             }
@@ -78,7 +98,7 @@ void parse_ini_file(const std::string &file_path) {
             iss >> subcommand;
 
             if (subcommand == "save") {
-                iss >> g_screenshot_name;
+                iss >> config.screenshot_name;
             }
         }
     }
@@ -86,10 +106,12 @@ void parse_ini_file(const std::string &file_path) {
 
     // Print the loaded values
     std::cout << "Loaded values from " << file_path << ":\n";
-    std::cout << "Configuration: " << g_config << "\n";
-    std::cout << "Chipset: " << g_chipset << "\n"; // Print the chipset value
-    std::cout << "ROM Path: " << g_rom_path << "\n";
-    std::cout << "ADF Path: " << g_adf_path << "\n";
-    std::cout << "Wait Time: " << g_screenshot_wait_time_seconds << " seconds\n";
-    std::cout << "Screenshot Name: " << g_screenshot_name << "\n";
+    std::cout << "Configuration: " << config.config_string << "\n";
+    std::cout << "Chipset: " << config.chipset << "\n"; // Print the chipset value
+    std::cout << "CPU Revision: " << config.cpu_revision << "\n"; // Print the CPU revision value
+    std::cout << "ROM Path: " << config.rom_path << "\n";
+    std::cout << "ADF Path: " << config.adf_path << "\n";
+    std::cout << "Wait Time: " << config.screenshot_wait_time_seconds << " seconds\n";
+    std::cout << "Screenshot Name: " << config.screenshot_name << "\n";
 }
+
