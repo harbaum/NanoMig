@@ -48,6 +48,10 @@ static Vnanomig_tb *tb;
 static VerilatedVcdC *trace;
 static double simulation_time;
 
+uint8_t chipset_config;
+std::string g_rom_path;
+std::string g_adf_path;
+
 #define TICKLEN   (0.5/28375160)
 
 // specfiy simulation runtime and from which point in time a trace should
@@ -247,13 +251,11 @@ void capture_video(void) {
 	  sprintf(name, "screenshots/frame%04d.png", frame);
 	  save_texture(sdl_renderer, sdl_texture, name);
 	  //printf ("simulation_time: %.3f seconds\n", (simulation_time));
-	  if ((simulation_time) > g_screenshot_wait_time_seconds + g_screenshot_wait_time_seconds_offset) {
-	    if (g_screenshot_taken != true && g_screenshot_name != "") {
-	      std::string full_screenshot_name = g_screenshot_dir + "/" +  g_screenshot_name + ".png";
+
+	  if (g_vAmigaTS_screenshot_name != "") { // there is a name -> take a screenshot when wait time is reached and then exit
+		if ((simulation_time) > g_vAmigaTS_screenshot_wait_time_seconds + g_vAmigaTS_screenshot_wait_time_seconds_offset) {
+	      std::string full_screenshot_name = g_vAmigaTS_screenshot_dir + "/" +  g_vAmigaTS_screenshot_name + ".png";
 	      save_texture(sdl_renderer, sdl_texture, full_screenshot_name.c_str());
-	      g_screenshot_taken = true;
-          //std::string str;
-          //std::getline(std::cin, str);
           exit(0);
 	    }
 	  }
@@ -1008,9 +1010,29 @@ void tick(int c) {
 }
 
 int main(int argc, char **argv) {
+  chipset_config = 0; // default chipset configuration = OCS
   g_rom_path = KICK;
   g_adf_path = FLOPPY_ADF;
-  parse_command_line_args(argc, argv); // from ini_parser.h
+  //parse_command_line_args(argc, argv); // from ini_parser.h
+  vAmigaTSConfig config = parse_command_line_args(argc, argv); // from ini_parser.h
+  if (config.config_file_name != "") {
+    g_rom_path = config.rom_path;
+    g_adf_path = config.adf_path;
+    g_vAmigaTS_screenshot_wait_time_seconds = config.screenshot_wait_time_seconds;
+    g_vAmigaTS_screenshot_wait_time_seconds_offset = config.screenshot_wait_time_seconds_offset;
+    g_vAmigaTS_screenshot_name = config.screenshot_name;
+    g_vAmigaTS_screenshot_dir = config.screenshot_dir;
+
+    // Determine the chipset configuration
+    if (config.chipset == "OCS") {
+      chipset_config = 0b000000; // Set OCS configuration
+    } else if (config.chipset == "ECS") {
+      chipset_config = 0b001000; // Set ECS configuration
+    }
+    std::cout << "chipset: " << config.chipset << "\n";
+    std::cout << "chipset_config: " << std::bitset<6>(chipset_config) << "\n";
+    std::cout << "cpu_revision" << config.cpu_revision << "\n";
+  }
     
   // Initialize Verilators variables
   Verilated::commandArgs(argc, argv);
@@ -1032,16 +1054,6 @@ int main(int argc, char **argv) {
   tb->trace(trace, 99);
   trace->open("nanomig.vcd");
   
-// Determine the chipset configuration
-  uint8_t chipset_config = 0;
-
-  if (g_chipset == "OCS") {
-    chipset_config = 0b000000; // Set OCS configuration
-  } else if (g_chipset == "ECS") {
-    chipset_config = 0b001000; // Set ECS configuration
-  }
-  std::cout << "chipset: " << g_chipset << "\n";
-  std::cout << "chipset_config: " << std::bitset<6>(chipset_config) << "\n";
   // Assign the chipset_config to the Verilog module's input
   tb->chipset_config = chipset_config;
 

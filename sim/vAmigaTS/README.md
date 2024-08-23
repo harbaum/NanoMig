@@ -48,5 +48,6 @@ This project uses a `Makefile` to automate the process of collecting tests and r
 	 
 
 ## Todo
+- Take into account CPU revision mentioned in INI files
 - Take into account the amount of RAM mentioned in INI files
 - Test handling of directories with multiple INI files
