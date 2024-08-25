@@ -44,8 +44,9 @@ module hdmi
     input logic 		      clk_pixel,
     input logic 		      clk_audio,
 
-    input logic                       pal_mode,   // 1 for pal timing
-    input logic                       interlace,  // 1 if interlace has been detected
+    input logic                       pal_mode,    // 1 for pal timing
+    input logic                       short_frame, // 1 if short frame has been detected
+    input logic                       interlace,   // 1 if interlace has been detected
     // synchronous reset back to 0,0
     input logic 		      reset,
     input logic [23:0] 		      rgb, 
@@ -80,9 +81,10 @@ wire [10:0] screen_width      = timing[80:70];
 wire [10:0] hsync_pulse_start = timing[69:59];
 wire [10:0] hsync_pulse_size  = timing[58:48];
 
+// if we have a short frame, then the scandoubler outputs two lines less
 // if amiga outputs interlaced video, then the scandoubler outputs one line
 // less resulting in an odd overall frame height
-wire [9:0] frame_height       = timing[47:38]-(interlace?10'd1:10'd0);
+wire [9:0] frame_height       = timing[47:38] - (short_frame ? 10'd2 : 10'd0) - (interlace ? 10'd1 : 10'd0);
 wire [9:0] screen_height      = timing[37:28];
 wire [9:0] vsync_pulse_start  = timing[27:18];
 wire [9:0] vsync_pulse_size   = timing[17: 8];
