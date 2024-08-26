@@ -10,8 +10,9 @@ module video_analyzer
  input		  clk,
  input		  hs,
  input		  vs,
- output reg       pal,       // pal mode detected
- output reg       interlace, // interlaces modes have one line less
+ output reg       pal,         // pal mode detected
+ output reg       short_frame, // short frame has two lines less
+ output reg       interlace,   // interlace modes have one line less
  output reg	  vreset
 );
    
@@ -41,37 +42,51 @@ always @(posedge clk) begin
         hcnt <= hcnt + 13'd1;
 
     if(!hs && hsD) begin
-       // ---- vsync processing -----
-       vsD <= vs;
-       // begin of vsync, falling edge
-       if(!vs && vsD) begin
-          // check if image height has changed during last cycle
-          vcntL <= vcnt;
-          if(vcntL != vcnt) begin
-	     interlace <= !vcnt[0];	     
-	     if(vcnt == 11'd525) pal <= 1'b0;
-	     if(vcnt == 11'd625) pal <= 1'b1;
-	     
-             changed <= 1'b1;
-	  end
-	     
-          vcnt <= 0;
-	  
-       end else
-         vcnt <= vcnt + 11'd1;
+        // ---- vsync processing -----
+        vsD <= vs;
+        // begin of vsync, falling edge
+        if(!vs && vsD) begin
+            // check if image height has changed during last cycle
+            vcntL <= vcnt;
+            if(vcntL != vcnt) begin
+                if(vcnt == 11'd523) begin
+                    pal <= 1'b0; // NTSC
+                    short_frame <= 1'b1;
+                end
+                if(vcnt == 11'd524 || vcnt == 11'd525) begin
+                    pal <= 1'b0; // NTSC
+                    short_frame <= 1'b0;
+                end
+                if(vcnt == 11'd623) begin
+                    pal <= 1'b1; // PAL
+                    short_frame <= 1'b1;
+                end
+                if(vcnt == 11'd624 || vcnt == 11'd625) begin
+                    pal <= 1'b1; // PAL
+                    short_frame <= 1'b0;
+                end
+
+                interlace <= !vcnt[0];
+
+                changed <= 1'b1;
+            end
+
+            vcnt <= 0;
+        end else
+            vcnt <= vcnt + 11'd1;
     end
 
-   // the reset signal is sent to the HDMI generator. On reset the
-   // HDMI re-adjusts its counters to the start of the visible screen
-   // area
+    // the reset signal is sent to the HDMI generator. On reset the
+    // HDMI re-adjusts its counters to the start of the visible screen
+    // area
    
-   vreset <= 1'b0;
-   // account for back porches to adjust image position within the
-   // HDMI frame
-   if( hcnt == 120 && vcnt == 36 && changed) begin
-      vreset <= 1'b1;
-      changed <= 1'b0;
-   end
+    vreset <= 1'b0;
+    // account for back porches to adjust image position within the
+    // HDMI frame
+    if( hcnt == 120 && vcnt == 36 && changed) begin
+        vreset <= 1'b1;
+        changed <= 1'b0;
+    end
 end
 
 endmodule
