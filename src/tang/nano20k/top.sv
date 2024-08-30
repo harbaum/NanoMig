@@ -620,14 +620,15 @@ end
 wire [2:0] tmds;
 wire tmds_clock;
 
-wire vreset, vpal, interlace;
+wire vreset, vpal, interlace, short_frame;
 video_analyzer video_analyzer (
-    .clk       ( clk_28m   ),
-    .hs        ( hs_n      ),
-    .vs        ( vs_n      ),
-    .pal       ( vpal      ),
-    .interlace ( interlace ),
-    .vreset    ( vreset    )
+    .clk         ( clk_28m   ),
+    .hs          ( hs_n      ),
+    .vs          ( vs_n      ),
+    .pal         ( vpal      ),
+    .short_frame ( short_frame ),
+    .interlace   ( interlace ),
+    .vreset      ( vreset    )
 );
    
 hdmi #(
@@ -643,6 +644,7 @@ hdmi #(
   .tmds_clock(tmds_clock),
 
   .pal_mode(vpal),
+  .short_frame ( short_frame ),
   .interlace(interlace),
   .reset(vreset),    // signal to synchronize HDMI
 
