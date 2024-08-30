@@ -359,8 +359,7 @@ always @(posedge clk_pixel) begin
 
       last_vs_n <= lcd_vs;   
       if(lcd_vs && !last_vs_n) begin
-         vcnt <= 10'd990;
-		 
+         vcnt <= 10'd946;		 
       end else
         vcnt <= vcnt + 10'd1;    
    end else
