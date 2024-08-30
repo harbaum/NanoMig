@@ -23,15 +23,21 @@ module minimig_syscontrol
 	output reg reset    //global synchronous system reset
 );
 
+//`ifdef RESET_DELAY
 reg [2:0] rst_cnt = 0; //reset timer SHOULD BE CLEARED BY CONFIG
 
 //reset timer and mrst control
 always @(posedge clk) begin
 	if (clk7_en) begin
 		if (mrst) rst_cnt <= 0;
-		else if (~rst_cnt[2] /* && cnt */) rst_cnt <= rst_cnt + 3'd1;
+		else if (~rst_cnt[2] && cnt) rst_cnt <= rst_cnt + 3'd1;
 		reset <= ~rst_cnt[2];
 	end
 end
-
+//`else // !`ifdef RESET_DELAY
+//always @(posedge clk)
+//   if (clk7_en)
+//     reset <= mrst;
+//`endif
+   
 endmodule

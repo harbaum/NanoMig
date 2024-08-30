@@ -153,46 +153,48 @@ module minimig
 	output [15:0] cpu_data, // m68k data bus
 	input [15:0]  cpudata_in, // m68k data in
 	output [2:0]  _cpu_ipl, // m68k interrupt request
-	input	      _cpu_as, // m68k address strobe
-	input	      _cpu_uds, // m68k upper data strobe
-	input	      _cpu_lds, // m68k lower data strobe
-	input	      cpu_r_w, // m68k read / write
-	output	      _cpu_dtack, // m68k data acknowledge
-	output	      _cpu_reset, // m68k reset
-	input	      _cpu_reset_in,//m68k reset in
+	input 	      _cpu_as, // m68k address strobe
+	input 	      _cpu_uds, // m68k upper data strobe
+	input 	      _cpu_lds, // m68k lower data strobe
+	input 	      cpu_r_w, // m68k read / write
+	output 	      _cpu_dtack, // m68k data acknowledge
+	output 	      _cpu_reset, // m68k reset
+	input 	      _cpu_reset_in,//m68k reset in
 	input [31:0]  nmi_addr, // m68k NMI address
-	output	      ovr, // NMI address decoding override
+	output 	      ovr, // NMI address decoding override
+	output reg    ovl, //kickstart overlay enable
 
 	//sram pins
 	output [15:0] ram_data, // sram data bus
 	input [15:0]  ramdata_in, // sram data bus in
 	output [23:1] ram_address, // sram address bus
-	output	      _ram_bhe, // sram upper byte select
-	output	      _ram_ble, // sram lower byte select
-	output	      _ram_we, // sram write enable
-	output	      _ram_oe, // sram output enable
+	output 	      _ram_bhe, // sram upper byte select
+	output 	      _ram_ble, // sram lower byte select
+	output 	      _ram_we, // sram write enable
+	output 	      _ram_oe, // sram output enable
 	input [47:0]  chip48, // big chipram read
-
+        output        refresh, // current bus cycle is refresh
+ 
 	//system	pins
-	input	      rst_ext, // reset from ctrl block
-	output	      rst_out, // minimig reset status
-	input	      clk, // 28.37516 MHz clock
-	input	      clk7_en, // 7MHz clock enable
-	input	      clk7n_en, // 7MHz negedge clock enable
-	input	      c1, // clock enable signal
-	input	      c3, // clock enable signal
-	input	      cck, // colour clock enable
+	input 	      rst_ext, // reset from ctrl block
+	output 	      rst_out, // minimig reset status
+	input 	      clk, // 28.37516 MHz clock
+	input 	      clk7_en, // 7MHz clock enable
+	input 	      clk7n_en, // 7MHz negedge clock enable
+	input 	      c1, // clock enable signal
+	input 	      c3, // clock enable signal
+	input 	      cck, // colour clock enable
 	input [9:0]   eclk, // ECLK enable (1/10th of CLK)
 
 	//rs232 pins
-	input	      rxd, // rs232 receive
-	output	      txd, // rs232 send
-	input	      cts, // rs232 clear to send
-	output	      rts, // rs232 request to send
-	output	      dtr, // rs232 Data Terminal Ready
-	input	      dsr, // rs232 Data Set Ready
-	input	      cd, // rs232 Carrier Detect
-	input	      ri, // rs232 Ring Indicator
+	input 	      rxd, // rs232 receive
+	output 	      txd, // rs232 send
+	input 	      cts, // rs232 clear to send
+	output 	      rts, // rs232 request to send
+	output 	      dtr, // rs232 Data Terminal Ready
+	input 	      dsr, // rs232 Data Set Ready
+	input 	      cd, // rs232 Carrier Detect
+	input 	      ri, // rs232 Ring Indicator
 
 	//I/O
 	input [15:0]  _joy1, // joystick 1 [fire2,fire,up,down,left,right] (default mouse port)
@@ -202,12 +204,12 @@ module minimig
 	input [15:0]  joya1,
 	input [15:0]  joya2,
 	input [2:0]   mouse_btn, // mouse buttons
-	input	      kms_level,
+	input 	      kms_level,
 	input [1:0]   kbd_mouse_type,
 	input [7:0]   kbd_mouse_data,
-	output	      pwr_led, // power led
-	output	      fdd_led, // disk activity LED, active when DMA is on
-	output	      hdd_led,
+	output 	      pwr_led, // power led
+	output 	      fdd_led, // disk activity LED, active when DMA is on
+	output 	      hdd_led,
 	input [64:0]  rtc,
 
 	input [7:0]   memory_config,
@@ -215,10 +217,10 @@ module minimig
 	input [3:0]   floppy_config,
  
 	//host controller interface (SPI)
-	input	      IO_UIO,
-	input	      IO_FPGA,
-	input	      IO_STROBE,
-	output	      IO_WAIT,
+	input 	      IO_UIO,
+	input 	      IO_FPGA,
+	input 	      IO_STROBE,
+	output 	      IO_WAIT,
 	input [15:0]  IO_DIN,
 	output [15:0] IO_DOUT,
 
@@ -228,26 +230,26 @@ module minimig
 	input [31:0]  sdc_img_size,
         output [3:0]  sdc_rd,
         output [31:0] sdc_sector,
-        input	      sdc_busy,
-        input	      sdc_done,
-	input	      sdc_byte_in_strobe,
+        input 	      sdc_busy,
+        input 	      sdc_done,
+	input 	      sdc_byte_in_strobe,
 	input [8:0]   sdc_byte_in_addr,
 	input [7:0]   sdc_byte_in_data, 
  
 	//video
-	output	      _hsync, // horizontal sync
-	output	      _vsync, // vertical sync
-	output	      _csync, // composite sync
-	output	      field1,
-	output	      lace,
-	output	      hblank,
-	output	      vblank,
+	output 	      _hsync, // horizontal sync
+	output 	      _vsync, // vertical sync
+	output 	      _csync, // composite sync
+	output 	      field1,
+	output 	      lace,
+	output 	      hblank,
+	output 	      vblank,
 	output [7:0]  red,
 	output [7:0]  green,
 	output [7:0]  blue,
 	output [1:0]  ar,
 	output [2:0]  scanline,
-	output	      ce_pix,
+	output 	      ce_pix,
 	output [1:0]  res,
 	output [8:0]  htotal, //video line length (140ns units)
 
@@ -260,26 +262,31 @@ module minimig
 
 `ifdef ENABLE_TOCCATA
 	// Toccata audio
-	input	      toccata_ena,
+	input 	      toccata_ena,
 	input [7:0]   toccata_base,
 	output [15:0] toccata_aud_left,
 	output [15:0] toccata_aud_right,
 `endif
  
 	//user i/o
+`ifndef ENABLE_USERIO_SPI   
+	input [1:0]   cpucfg,
+	input [2:0]   cachecfg,
+`else
 	output [1:0]  cpucfg,
 	output [2:0]  cachecfg,
+`endif
 	output [6:0]  memcfg,
-	output	      bootrom, // enable bootrom magic in gary.v
-	output	      ide_ena,
+	output 	      bootrom, // enable bootrom magic in gary.v
+	output 	      ide_ena,
 
-	output	      ide_fast,
-	input	      ide_ext_irq,
+	output 	      ide_fast,
+	input 	      ide_ext_irq,
 	output [5:0]  ide_req,
 	input [4:0]   ide_address,
-	input	      ide_write,
+	input 	      ide_write,
 	input [15:0]  ide_writedata,
-	input	      ide_read,
+	input 	      ide_read,
 	output [15:0] ide_readdata
 );
 
@@ -430,15 +437,13 @@ wire        rom_readonly; 		//writeprotect $f8-ff in gary.v
 
 wire        reset = sys_reset | ~_cpu_reset_in; // both tg68k and minimig_syscontrol hold the reset signal for some clicks
 
-reg ovl; //kickstart overlay enable
-
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 
 assign pwr_led = ~_led;
 
 assign memcfg = {memory_config[7],memory_config[5:0]};
-assign cachecfg = {cachecfg_pre[2], ~ovl, ~ovl};
+// assign cachecfg = {cachecfg_pre[2], ~ovl, ~ovl};
 
 // NTSC/PAL switching is controlled by OSD menu, change requires reset to take effect
 always @(posedge clk) if (clk7_en && reset) ntsc <= chipset_config[1];
@@ -467,6 +472,7 @@ agnus AGNUS1
 	.cpu_custom(cpu_custom),
 	.dbr(dbr),
 	.dbwe(dbwe),
+	.refresh(refresh),
 	._hsync(_hsync),
 	._vsync(_vsync),
 	._csync(_csync),
@@ -608,12 +614,6 @@ userio USERIO1
 	.host_ack(host_ack)
 `endif
 );
-   
-`ifndef ENABLE_USERIO_SPI
-// sane userio defaults
-assign cpucfg = 2'b00;  // fx68k/68000
-assign cachecfg_pre = 3'd0;   
-`endif
    
 wire shres;
 assign ce_pix = (shres & |chipset_config[4:3]) | (hires & clk7n_en) | clk7_en;
@@ -888,7 +888,7 @@ gayle GAYLE1
 	.led(hdd_led)
 );
 `endif
-
+   
 //instantiate system control
 minimig_syscontrol CONTROL1 
 (	

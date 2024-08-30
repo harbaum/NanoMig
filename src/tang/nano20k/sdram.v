@@ -38,6 +38,7 @@ module sdram (
 
 	output		  ready, // ram is ready and has been initialized
 	input		  sync,
+	input		  refresh,
 	input [15:0]	  din, // data input from chipset/cpu
 //	output reg [15:0] dout,
 	output [15:0] dout,
@@ -116,6 +117,7 @@ assign dout = addr_R[0]?sd_data[15:0]:sd_data[31:16];
 reg [1:0] ds_R;
 reg we_R;
 reg cs_R;
+reg ref_R;
 reg [21:0] addr_R;   
 reg [15:0] din_R;   
 
@@ -171,16 +173,20 @@ always @(posedge clk) begin
 	       // latch input signals
 	       ds_R <= ds;
 	       we_R <= we;
+	       ref_R <= refresh;
 	       addr_R <= addr;	       
 	       din_R <= din;	       
 
-               // RAS phase
-               sd_cmd <= CMD_ACTIVE;
-               sd_addr <= addr[19:9];
-               sd_ba <= addr[21:20];
+	       if(!refresh) begin
+		  // RAS phase
+		  sd_cmd <= CMD_ACTIVE;
+		  sd_addr <= addr[19:9];
+		  sd_ba <= addr[21:20];
 
-	       if(!we) sd_dqm <=  4'b0000;
-	       else    sd_dqm <= addr[0]?{2'b11,ds}:{ds,2'b11};
+		  if(!we) sd_dqm <=  4'b0000;
+		  else    sd_dqm <= addr[0]?{2'b11,ds}:{ds,2'b11};
+	       end else		  
+		 sd_cmd <= CMD_AUTO_REFRESH;	       
             end else
 	      sd_cmd <= CMD_NOP;
          end
@@ -192,7 +198,7 @@ always @(posedge clk) begin
          // -------------------  cpu/chipset read/write ----------------------
 
          // CAS phase 
-         if(state == STATE_CMD_CONT) begin
+         if(state == STATE_CMD_CONT && !ref_R) begin
 	    if(cs_R) begin
 	       sd_cmd <= we_R?CMD_WRITE:CMD_READ;
                sd_addr <= { 3'b100, addr_R[8:1] };

@@ -97,8 +97,8 @@ pll_142m pll_hdmi (
 
 reg clk_71m;
 always @(posedge clk_pixel_x5)
-  if(!pll_lock) clk_71m <= 1'b0;   
-   else         clk_71m <= !clk_71m;
+  if(!pll_lock) clk_71m <= 1'b0;
+  else          clk_71m <= !clk_71m;
 
 wire clk_pixel;
 Gowin_CLKDIV clk_div_5 (
@@ -374,7 +374,8 @@ wire [15:0] ram_dout;
 wire 	    ram_we_n;
 wire [1:0]  ram_be;
 wire 	    ram_oe_n;
-
+wire		ram_refresh;   
+   
 wire [15:0] sdram_dout;
 
 assign ram_din = sdram_dout;
@@ -441,7 +442,8 @@ nanomig nanomig
  ._ram_ble(ram_be[0]),      // sram lower byte select
  ._ram_we(ram_we_n),        // sram write enable
  ._ram_oe(ram_oe_n),        // sram output enable
- .chip48(48'd0)
+ .chip48(48'd0),
+ .refresh(ram_refresh)
 );
 
 wire           flash_ready;  
@@ -546,7 +548,7 @@ wire		sdram_cs      = rom_done?sdram_access:flash_ram_write;
 
 wire        sdram_sync    = rom_done?!cyc:flash_ram_write;
    
-//wire		sdram_cs      = rom_done?sdram_access && !cyc:flash_ram_write;
+wire		sdram_refresh = rom_done?ram_refresh:1'b0;
    
 wire [21:0] sdram_addr    = rom_done?ram_a[22:1]:flash_ram_addr;
 wire [15:0] sdram_din     = rom_done?ram_dout:flash_doutD;
@@ -571,6 +573,7 @@ sdram sdram (
 
 	.ready      ( sdram_ready   ), // ram is ready and has been initialized
 	.sync       ( sdram_sync    ), // rising edge of sync is begin of a memory cycle
+	.refresh    ( sdram_refresh ), // refresh cycle
 	.din        ( sdram_din     ), // data input from chipset/cpu
 	.dout       ( sdram_dout    ),
 	.addr       ( sdram_addr    ), // 22 bit word address

@@ -1,5 +1,11 @@
 // nanomig.v
 
+// turbo mode
+// cpu and dma use different slots
+//   copper and other dma runs on hpos[0] == 1
+//   cpu runs in hpos[0] == 0
+// -> run cpu on unused hpos[0] == 1 for turbo
+
 module nanomig (
    input	 clk_sys,
    input	 reset,
@@ -50,13 +56,14 @@ module nanomig (
    input [7:0]	 sdc_byte_in_data,
 		
    // (s)ram interface
-   output [15:0] ram_data, // sram data bus
-   input [15:0]	 ramdata_in, // sram data bus in
-   input [47:0]	 chip48, // big chip read
+   output [15:0] ram_data,    // sram data bus
+   input [15:0]	 ramdata_in,  // sram data bus in
+   input [47:0]	 chip48,      // big chip read
+   output        refresh,     // ram refresh cycle
    output [23:1] ram_address, // sram address bus
-   output	 _ram_bhe, // sram upper byte select
-   output	 _ram_ble, // sram lower byte select
-   output	 _ram_we, // sram write enable
+   output	 _ram_bhe,    // sram upper byte select
+   output	 _ram_ble,    // sram lower byte select
+   output	 _ram_we,     // sram write enable
    output	 _ram_oe      // sram output enable
 );
 
@@ -120,9 +127,9 @@ always @(posedge clk_sys) begin
       cpu_ph2 <=  !c1 && !c3;
    end
 end
+   
 `else   
 reg  cyc;
-reg  ram_cs;
 always @(posedge clk_sys) begin
 	reg [3:0] div;
 	reg       c1d;
@@ -148,8 +155,6 @@ always @(posedge clk_sys) begin
 			endcase
 		end
 	end
-
-//	ram_cs <= ~(ram_ready & cyc & cpu_type) & ram_sel;
 end
 `endif
 
@@ -158,7 +163,7 @@ wire        cpu_nrst_out;
 wire  [3:0] cpu_cacr;
 wire [31:0] cpu_nmi_addr;
 
-wire	  cpu_rst = !reset;
+// wire	  cpu_rst = !reset;
    
 wire  [2:0] chip_ipl;
 wire        chip_dtack;
@@ -170,15 +175,55 @@ wire [15:0] chip_dout;
 wire [15:0] chip_din;
 wire [23:1] chip_addr;
 
+wire	    ovl;
+   
+wire [1:0] cpucfg = 2'b00;     // 68020=11
+// cache bits: dcache, kick, chip
+// wire [2:0] cachecfg = { 1'b0, ~ovl, 1'b0 };
+wire [2:0] cachecfg = 3'b000;  // no turbo chip and kick, no caches   
+// wire [2:0] cachecfg = 3'b010;  // permanent turbo kick
+
+// -------------- fast(er) ram interface used in turbo mode --------------
+
+// This implements a direct path for the CPU to access ram. This can be used
+// whenever the RAM is unused by the chipset itself (DMA) to give the CPU
+// faster access than usual. With the tg68k this can be used to speed up
+// the system significantly. Since Kickstart is also stored in ram, this also
+// speeds up kickstart rom access.
+   
+wire	   _ram_oe_i;
+assign _ram_oe = ~(~_ram_oe_i || ram_cs);   
+   
+wire [15:0] ram_dout = ramdata_in;   
 wire [28:1] ram_addr;   
 wire	    ram_sel;
 wire	    ram_lds;
 wire	    ram_uds;
-wire [15:0] ram_din;
-wire        ramshared;
+   
+// ram_ready finally is the clkena for the tg68k
+reg	    ram_ready;
 
-wire [1:0] cpucfg = 2'b00;     // 00 = 68000, 01=68010, 11=68020
-wire [2:0] cachecfg = 3'b000;  // no turbo chip and kick, no caches   
+// generate a ram_cs at the begin of the bus cycle, so the ram cycle starts
+// at the right time
+wire	    ram_cs = (cpu_ph2 && ram_sel) || ram_cs_trigger || ram_cs_triggerD; 
+
+reg	    ram_cs_trigger;   
+always @(negedge clk_sys)
+   if( cpu_ph2 )      ram_cs_trigger <= ram_sel;
+   else if( clk7_en ) ram_cs_trigger <= 1'b0;   
+
+reg	    ram_cs_triggerD;
+always @(posedge clk_sys)
+  ram_cs_triggerD <= ram_cs_trigger;   
+   
+// neg/clk7
+always @(negedge clk_sys) begin
+   if( clk7_en )
+     // only generate ready when the chipset is not accessing ram
+     ram_ready <= _ram_oe_i && ram_cs;
+   else
+     ram_ready <= 1'b0;
+end
    
 cpu_wrapper cpu_wrapper
 (
@@ -205,22 +250,22 @@ cpu_wrapper cpu_wrapper
 	.fastchip_uds    (  ),
 	.fastchip_rnw    (  ),
 	.fastchip_selack (  ),
-	.fastchip_ready  (1'b0 ),
+	.fastchip_ready  ( 1'b0 ),
 	.fastchip_lw     (  ),
 
 	.cpucfg       (cpucfg          ),
 	.cachecfg     (cachecfg        ),
 	.fastramcfg   (3'd0            ),
-	.bootrom      (bootrom         ),
+	.bootrom      (1'b0            ),
 
 	.ramsel       (ram_sel         ),
 	.ramaddr      (ram_addr        ),
 	.ramlds       (ram_lds         ),
 	.ramuds       (ram_uds         ),
-	.ramdout      (                ),
-	.ramdin       (ram_din         ),
-	.ramready     (1'b0            ),
-	.ramshared    (ramshared       ),
+	.ramdout      (ram_dout        ),
+	.ramdin       (                ),
+	.ramready     (ram_ready       ),
+	.ramshared    (                ),
 
 	//custom CPU signals
 	.cpustate     (cpu_state       ),
@@ -261,7 +306,7 @@ minimig minimig
 	._cpu_lds     (chip_lds         ), // M68K lower data strobe
 	.cpu_r_w      (chip_rw          ), // M68K read / write
 	._cpu_dtack   (chip_dtack       ), // M68K data acknowledge
-	._cpu_reset   (/*cpu_rst */     ), // M68K reset
+	._cpu_reset   (cpu_rst          ), // M68K reset
 	._cpu_reset_in(cpu_nrst_out     ), // M68K reset out
 	.nmi_addr     (cpu_nmi_addr     ), // M68K NMI address
 
@@ -276,8 +321,9 @@ minimig minimig
 	._ram_bhe     (_ram_bhe         ), // SRAM upper byte select
 	._ram_ble     (_ram_ble         ), // SRAM lower byte select
 	._ram_we      (_ram_we          ), // SRAM write enable
-	._ram_oe      (_ram_oe          ), // SRAM output enable
+	._ram_oe      (_ram_oe_i        ), // SRAM output enable
 	.chip48       (chip48           ), // big chipram read
+	.refresh      (refresh          ), // current bus cycle is refresh
 
 	//system  pins
 	.rst_ext      (reset_d          ), // reset from ctrl block
@@ -289,6 +335,7 @@ minimig minimig
 	.c3           (c3               ), // clk28m clock domain signal synchronous with clk signal delayed by 90 degrees
 	.cck          (cck              ), // colour clock output (3.54 MHz)
 	.eclk         (eclk             ), // 0.709379 MHz clock enable output (clk domain pulse)
+        .ovl          (ovl              ),   
 
 	//rs232 pins
 	.rxd          (uart_rx          ), // RS232 receive
@@ -349,8 +396,8 @@ minimig minimig
 	.aud_mix      (                 ),
 
 	//user i/o
-	.cpucfg       ( ), // CPU config
-	.cachecfg     ( ), // Cache config
+	.cpucfg       (cpucfg ), // CPU config
+	.cachecfg     (cachecfg ), // Cache config
 	.memcfg       ( ), // memory config
 	.bootrom      ( ), // bootrom mode. Needed here to tell tg68k to also mirror the 256k Kickstart 
 

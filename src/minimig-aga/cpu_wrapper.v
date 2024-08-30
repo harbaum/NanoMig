@@ -24,7 +24,7 @@
 //--------------------------------------------------------------------------//
 //--------------------------------------------------------------------------//
 
-//`define ENABLE_TG68K
+// `define ENABLE_TG68K
 `define ENABLE_FX68K
 
 `define TG68K_A24      // limit address space of TG68K to 24 bit
@@ -329,8 +329,8 @@ always @(posedge clk) begin
 		dcache_d    <= 0;
 	end
 	else if (~cpu_req) begin	// No mem access, so safe to switch chipram access mode
-		turbochip_d <= cachecfg[0] & cpucfg[1];
-		turbokick_d <= cachecfg[1] & cpucfg[1];
+		turbochip_d <= cachecfg[0]/* & cpucfg[1]*/; // FIXME, always only for testing
+		turbokick_d <= cachecfg[1]/* & cpucfg[1]*/;
 		dcache_d    <= cachecfg[2];
 	end
 end
@@ -489,7 +489,7 @@ always @(negedge clk, negedge reset) begin
 						c_rw <= wr;
 						c_uds <= uds_in;
 						c_lds <= lds_in;
-						stage <= 1;
+						stage <= 1; // 1
 					end
 				1: stage <= 2;
 				2: begin
@@ -500,7 +500,7 @@ always @(negedge clk, negedge reset) begin
 							c_uds <= 1;
 							c_lds <= 1;
 							ready <= 1;
-							stage <= 3;
+							stage <= 3;  // 3
 						end
 					end
 				3: stage <= 0;
