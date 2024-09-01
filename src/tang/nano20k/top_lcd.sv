@@ -1,5 +1,5 @@
 /*
-    top.sv - Minimig on tang nano 20k toplevel
+    top_lcd.sv - Minimig on tang nano 20k toplevel
 */ 
 
 /* we need two copies in case of 256k kickroms
@@ -29,26 +29,27 @@ module top(
   // "Magic" port names that the gowin compiler connects to the on-chip SDRAM
   output		O_sdram_clk,
   output		O_sdram_cke,
-  output		O_sdram_cs_n, // chip select
+  output		O_sdram_cs_n,  // chip select
   output		O_sdram_cas_n, // columns address select
   output		O_sdram_ras_n, // row address select
   output		O_sdram_wen_n, // write enable
-  inout [31:0]	IO_sdram_dq, // 32 bit bidirectional data bus
-  output [10:0]	O_sdram_addr, // 11 bit multiplexed address bus
-  output [1:0]	O_sdram_ba, // two banks
-  output [3:0]	O_sdram_dqm, // 32/4
+  inout [31:0]	IO_sdram_dq,   // 32 bit bidirectional data bus
+  output [10:0]	O_sdram_addr,  // 11 bit multiplexed address bus
+  output [1:0]	O_sdram_ba,    // two banks
+  output [3:0]	O_sdram_dqm,   // 32/4
 
   // interface to external BL616/M0S
   inout [4:0]	m0s,
 
   // internal lcd
   output		lcd_dclk,
-  output		lcd_hs, //lcd horizontal synchronization
-  output		lcd_vs, //lcd vertical synchronization        
-  output		lcd_de, //lcd data enable     
-  output [4:0]	lcd_r, //lcd red
-  output [5:0]	lcd_g, //lcd green
-  output [4:0]	lcd_b, //lcd blue
+  output		lcd_hs, // lcd horizontal synchronization
+  output		lcd_vs, // lcd vertical synchronization        
+  output		lcd_bl, // lcd backlight enable
+  output		lcd_de, // lcd data enable     
+  output [4:0]	lcd_r,  // lcd red
+  output [5:0]	lcd_g,  // lcd green
+  output [4:0]	lcd_b,  // lcd blue
 
   // SD card slot
   output		sd_clk,
@@ -338,34 +339,6 @@ osd_u8g2 osd_u8g2 (
         .b_out(osd_b)
 );   
 
-assign lcd_dclk = clk_pixel;
-assign lcd_hs = hs_n;
-assign lcd_vs = vs_n;
-
-reg [9:0] hcnt;   // max 1023
-reg [9:0] vcnt;   // max 626
-
-// generate the 800x480 pixel display enable signal 
-assign lcd_de = (hcnt < 10'd800) && (vcnt < 10'd480);
-
-always @(posedge clk_pixel) begin
-   reg       last_vs_n, last_hs_n;
-
-   last_hs_n <= lcd_hs;   
-
-   // rising edge/end of hsync
-   if(lcd_hs && !last_hs_n) begin
-      hcnt <= 10'd980;
-
-      last_vs_n <= lcd_vs;   
-      if(lcd_vs && !last_vs_n) begin
-         vcnt <= 10'd946;		 
-      end else
-        vcnt <= vcnt + 10'd1;    
-   end else
-      hcnt <= hcnt + 10'd1;    
-end
-   
 /* ---------------------- Minimig chipset ----------------------- */
 
 // two 15 bit audio channels
@@ -625,7 +598,7 @@ flash flash (
     .mspi_do   ( mspi_do     )
 );
 
-/* -------------------- HDMI video and audio -------------------- */
+/* -------------------- LCD video and audio -------------------- */
 
 wire vreset, vpal, interlace;
 video_analyzer video_analyzer (
@@ -637,6 +610,81 @@ video_analyzer video_analyzer (
     .vreset    ( vreset    )
 );
    
+assign lcd_dclk = clk_pixel;
+assign lcd_hs = hs_n;
+assign lcd_vs = vs_n;
+assign lcd_bl = !cpu_reset;   // enable display backlight once cpu is out of reset
+
+reg [9:0] hcnt;   // max 1023
+reg [9:0] vcnt;   // max 626
+
+// generate the 800x480 pixel display enable signal 
+assign lcd_de = (hcnt < 10'd800) && (vcnt < 10'd480);
+
+always @(posedge clk_pixel) begin
+   reg       last_vs_n, last_hs_n;
+
+   last_hs_n <= lcd_hs;   
+
+   // rising edge/end of hsync
+   if(lcd_hs && !last_hs_n) begin
+      hcnt <= 10'd980;
+
+      last_vs_n <= lcd_vs;   
+      if(lcd_vs && !last_vs_n) begin
+         vcnt <= 10'd946;		 
+      end else
+        vcnt <= vcnt + 10'd1;    
+   end else
+      hcnt <= hcnt + 10'd1;    
+end
+   
+/* ------------------- audio processing --------------- */
+
+// MAX98357A
+   
+// EN is actually the /SD_MODE of the MAX98357A and driving it high selects
+// left channel only. For stereo mixing there would have to be a "large" 
+// resistor as a pullup which isn't there on the TN20k
+
+assign pa_en = !cpu_reset;   // simply enable amplifier with left channel
+
+reg clk_audio;
+reg [7:0] aclk_cnt;
+always @(posedge clk_28m) begin
+    if(aclk_cnt < 28375160 / (24000*32) / 2 - 1)
+        aclk_cnt <= aclk_cnt + 8'd1;
+    else begin
+        aclk_cnt <= 8'd0;
+        clk_audio <= ~clk_audio;
+    end
+end
+
+// shift audio down to reduce amp output volume to a sane range
+localparam AUDIO_SHIFT = 2;   
+   
+wire [15:0] audio_mix =
+			{ {AUDIO_SHIFT+1{ audio_left[14]}},  audio_left[13:AUDIO_SHIFT] } +
+			{ {AUDIO_SHIFT+1{audio_right[14]}}, audio_right[13:AUDIO_SHIFT] };  
+   
+// count 32 bits, 16 left and 16 right channel. MAX samples
+// on rising edge
+reg [15:0] audio;
+reg [4:0] audio_bit_cnt;
+always @(posedge clk_audio) begin
+   if(cpu_reset) audio_bit_cnt <= 5'd0;
+   else          audio_bit_cnt <= audio_bit_cnt + 5'd1;
+
+   // latch data so it's stable during transmission
+   if(audio_bit_cnt == 5'd31)
+	 audio <= 16'h8000 + audio_mix;   
+end
+
+// generate i2s signals
+assign hp_bck = !clk_audio;
+assign hp_ws = cpu_reset?1'b0:audio_bit_cnt[4];
+assign hp_din = cpu_reset?1'b0:audio[15-audio_bit_cnt[3:0]];
+
 endmodule
 
 // To match emacs with gw_ide default
