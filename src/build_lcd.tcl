@@ -79,7 +79,7 @@ add_file tg68k/TG68K.vhd
 add_file tg68k/TG68K_ALU.vhd
 add_file tg68k/TG68KdotC_Kernel.vhd
 set_option -synthesis_tool gowinsynthesis
-set_option -output_base_name nanomig
+set_option -output_base_name nanomig_lcd
 set_option -verilog_std sysv2017
 set_option -top_module top
 set_option -use_mspi_as_gpio 1
