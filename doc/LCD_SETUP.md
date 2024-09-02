@@ -25,7 +25,7 @@ RP2040-Zero variant](https://www.waveshare.com/wiki/RP2040-Zero) as it
 provides a nice and compact solution. The Tang Nano 20k and the RP2040-Zero
 need to be wired up in the folloring way:
 
-![Wiring for LCD usage](wiring_lcd.jpg)
+![Wiring for LCD usage](wiring_lcd.png)
 
 The LCD setup uses different pins on the FPGA to connect to the FPGA Companion
 than the regular version. This is due to the fact that the LCD uses most of the
