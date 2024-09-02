@@ -49,8 +49,8 @@ The signal pins used in this case are:
 1. Install two copies of kickstart 1.3 ROM in the FPGAs flash
     * ```openFPGALoader --external-flash -o 0x400000 kick13.rom```
     * ```openFPGALoader --external-flash -o 0x440000 kick13.rom```
-2. Install the core in the FPGAs flash
-   * ```openFPGALoader -fs [nanomig_lcd.fs](https://github.com/harbaum/NanoMig/releases/)```
+2. Install [the core](https://github.com/harbaum/NanoMig/releases/ in the FPGAs flash
+   * ```openFPGALoader -fs nanomig_lcd.fs```
 
 If the LCD is connected the Tang Nano 20k should boot up to the Kickstart
 floppy disk/hand screen. This should even work without SD card inserted and
