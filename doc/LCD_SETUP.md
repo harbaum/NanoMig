@@ -33,6 +33,8 @@ FPGAs spare connections incl. those that normally would be used for the FPGA
 Companion. The signals thus had to be moved to FPGA pins neither used by the LCD
 nor by the audio amplifier.
 
+![Hardware setup](tn20k_rp2040_zero.jpg)
+
 The signal pins used in this case are:
 
 | FPGA | RP2040 | Signal | Description |
