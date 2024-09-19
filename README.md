@@ -19,6 +19,12 @@ Current state:
   * Keyboard, Mouse and Joystick via USB
   * [Fully simulated](sim)
 
+Planned features:
+  * Virtual IDE hard disk support
+  * Floppy and hard disk write support
+  * Accelerated 68020 support (may not fit)
+  * AGA support (may not fit)
+
 ## Videos
 
 These youtube shorts mainly document the progress:
@@ -28,6 +34,9 @@ These youtube shorts mainly document the progress:
   * [NanoMig #3: Booting workbench for the first time on Tang Nano 20k](https://www.youtube.com/shorts/ZvdcHXi-k2g)
   * [NanoMig #4: Running Amiga Pro tracker on the Tang Nano 20k](https://www.youtube.com/shorts/00sgeovKQa4)
   * [NanoMig #5: Cheap FPGA Amiga finally runs Planet Rocklobster Demo](https://youtube.com/shorts/PSqerpTvJrw)
+  * [NanoMig #6: First signs of life with the 68ec020](https://www.youtube.com/shorts/uFKjddN-WSA)
+  * [NanoMig #7: Tiniest Amiga running Gods](https://www.youtube.com/shorts/vbYURdxtEAQ)
+  * [NanoMig #8: Booting from virtual Harddisk](https://www.youtube.com/shorts/9LJ0tsSZb60)
  
 ## What's needed?
 
