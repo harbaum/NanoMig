@@ -397,6 +397,7 @@ nanomig nanomig
  .chipset_config(chipset_config),
  .floppy_config(floppy_config),
  .video_config(video_config),
+ .ide_config(6'b000111),            // TODO: make configurable
  
  // video
  .hs(hs_n), // horizontal sync

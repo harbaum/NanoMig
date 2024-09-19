@@ -24,6 +24,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// Changes/TODO:
+// - suppress ready bit for drives not present
+// - reduce buffer size when only HDDs are being used
+
 module ide
 (
 	input             clk,
@@ -31,7 +35,7 @@ module ide
 
 	output reg        irq,
 	output            drq,
-	
+
 	input             use_fast, // 1 - supports fast read mode
 	output            no_data,  // pause for system when no data is available in fast mode
 
@@ -57,7 +61,7 @@ module ide
 
 assign drq      = status[3];
 assign drive_en = present;
-
+   
 //------------------------------------------------------------------------------
 
 wire io_wr = io_write & |present;
@@ -75,8 +79,8 @@ always @(posedge clk) if(io_read) begin
 				   4: io_readdata <= (hob ? cylinder[23:16]    : cylinder[7:0]     );
 				   5: io_readdata <= (hob ? cylinder[31:24]    : cylinder[15:8]    );
 				   6: io_readdata <= drv_addr;
-				   7: io_readdata <= status;
-				  14: io_readdata <= status;
+				   7: io_readdata <= present[drv_addr[4]]?status:8'h00;
+				  14: io_readdata <= present[drv_addr[4]]?status:8'h00;
 				  15: io_readdata <= { 2'b10, ~drv_addr[3:0], ~drv_addr[4], drv_addr[4]};
 			default: io_readdata <= 0;
 		endcase
@@ -279,36 +283,87 @@ always @(posedge clk) n_data_r <= {n_data_r[0], n_data};
 wire [31:0] buf_readdata;
 wire [31:0] buf_q;
 
-`ifdef FIXME
-dpram #(12,16) io_buf0
+`ifndef VERILATOR
+ide_dpram io_buf0
 (
-	.clock(clk),
+	.clka(clk),
+	.reseta(reset),
+        .cea(1'b1), 
+        .ada(mgmt_cnt[12:1]),
+	.wrea(mgmt_write & &mgmt_address & ~mgmt_cnt[0]),
+	.dina(mgmt_writedata),
+        .ocea(1'b1),
+	.douta(buf_readdata[15:0]),
 
-	.address_a(mgmt_cnt[12:1]),
-	.data_a(mgmt_writedata),
-	.wren_a(mgmt_write & &mgmt_address & ~mgmt_cnt[0]),
-	.q_a(buf_readdata[15:0]),
-
-	.address_b(io_cnt[12:1]),
-	.data_b(io_writedata[15:0]),
-	.wren_b(write_data_io & (io_32 | ~io_cnt[0])),
-	.q_b(buf_q[15:0])
+	.clkb(clk),
+	.resetb(reset),
+        .ceb(1'b1), 
+	.adb(io_cnt[12:1]),
+	.wreb(write_data_io & (io_32 | ~io_cnt[0])),
+	.dinb(io_writedata[15:0]),
+        .oceb(1'b1),
+	.doutb(buf_q[15:0])
 );
 
-dpram #(12,16) io_buf1
+ide_dpram io_buf1
 (
-	.clock(clk),
+	.clka(clk),
+	.reseta(reset),
+        .cea(1'b1), 
+	.ada(mgmt_cnt[12:1]),
+	.wrea(mgmt_write & &mgmt_address & mgmt_cnt[0]),
+	.dina(mgmt_writedata),
+        .ocea(1'b1),
+	.douta(buf_readdata[31:16]),
 
-	.address_a(mgmt_cnt[12:1]),
-	.data_a(mgmt_writedata),
-	.wren_a(mgmt_write & &mgmt_address & mgmt_cnt[0]),
-	.q_a(buf_readdata[31:16]),
-
-	.address_b(io_cnt[12:1]),
-	.data_b(io_32 ? io_writedata[31:16] : io_writedata[15:0]),
-	.wren_b(write_data_io & (io_32 | io_cnt[0])),
-	.q_b(buf_q[31:16])
+	.clkb(clk),
+	.resetb(reset),
+        .ceb(1'b1), 
+	.adb(io_cnt[12:1]),
+	.wreb(write_data_io & (io_32 | io_cnt[0])),
+	.dinb(io_32 ? io_writedata[31:16] : io_writedata[15:0]),
+        .oceb(1'b1),
+	.doutb(buf_q[31:16])
 );
+`else // !`ifdef VERILATOR
+
+reg [31:0] buf_readdataR;
+assign buf_readdata = buf_readdataR;
+
+reg [31:0] buf_qR;
+assign buf_q = buf_qR;
+
+// buffers are 16kBytes per IDE device
+reg [15:0] buf_l [4096];
+reg [15:0] buf_h [4096];
+   
+always @(posedge clk) begin
+
+   /* buffer direction when reading from ide */
+   if(mgmt_write & &mgmt_address) begin
+      if(mgmt_cnt[0]) buf_h[mgmt_cnt[12:1]] <= mgmt_writedata;      
+      else            buf_l[mgmt_cnt[12:1]] <= mgmt_writedata;      
+   end
+`ifdef IDE_ENABLE_WRITE
+   else
+      buf_readdataR <= { buf_h[mgmt_cnt[12:1]], buf_l[mgmt_cnt[12:1]] };
+`endif
+   
+   /* buffer direction when writing to ide */
+   if(write_data_io) begin
+`ifdef IDE_ENABLE_WRITE
+      if(io_32) begin
+	 buf_h[io_cnt[12:1]] <= io_writedata[31:16];
+	 buf_l[io_cnt[12:1]] <= io_writedata[15:0];	 
+     end else begin
+	 if(io_cnt[0]) buf_h[io_cnt[12:1]] <= io_writedata[15:0];
+	 else          buf_l[io_cnt[12:1]] <= io_writedata[15:0];
+     end
+`endif
+   end else
+     buf_qR <= { buf_h[io_cnt[12:1]], buf_l[io_cnt[12:1]] };
+
+end
 `endif
    
 //------------------------------------------------------------------------------

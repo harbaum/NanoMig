@@ -37,15 +37,15 @@ module sd_card # (
     // export sd image size   
     output reg [31:0] image_size,
     // up to four images supported (e.g. 2x floppy, 2xACSI)
-    output reg [3:0]  image_mounted,
+    output reg [7:0]  image_mounted,
 
     // read sector command interface (sync with clk), this once was
     // directly tied to the sd card. Now this goes to the MCU via the
     // MCU interface as the MCU translates sector numbers from those
     // the core tries to use to physical ones inside the file system
     // of the sd card
-    input [3:0]		  rstart, // up to four different sources can request data 
-    input [3:0]		  wstart, 
+    input [7:0]		  rstart, // up to eight different sources can request data 
+    input [7:0]		  wstart, 
     input [31:0]	  rsector,
     output			  rbusy,
     output			  rdone,
@@ -166,11 +166,11 @@ always @(posedge clk) begin
       rstart_int <= 1'b0;
       wstart_int <= 1'b0;
       image_size <= 32'd0;
-      image_mounted <= 4'b0000;
+      image_mounted <= 8'b00000000;
       state <= IDLE;      
 	  dinb_we <=1'b0;
    end else begin
-      image_mounted <= 4'b0000;
+      image_mounted <= 8'b00000000;
 
       // done from sd reader acknowledges/clears start
       if(rdone) begin
@@ -204,7 +204,7 @@ always @(posedge clk) begin
 			if(command == 8'd1) begin
                // request status byte, for the MCU it doesn't matter whether
 			   // the core wants to write or to read
-			   if(byte_cnt == 4'd0) data_out <= { 4'b000, rstart | wstart };
+			   if(byte_cnt == 4'd0) data_out <= rstart | wstart;
 			   if(byte_cnt == 4'd1) data_out <= rsector[31:24];
 			   if(byte_cnt == 4'd2) data_out <= rsector[23:16];
 			   if(byte_cnt == 4'd3) data_out <= rsector[15: 8];
@@ -261,7 +261,7 @@ always @(posedge clk) begin
 			   if(byte_cnt == 4'd3) image_size[15:8]  <= data_in;
 			   if(byte_cnt == 4'd4) begin 
 				  image_size[7:0]   <= data_in;
-				  if(image_target <= 8'd3)  // images 0..3 are supported
+				  if(image_target <= 8'd7)  // images 0..7 are supported
 					image_mounted[image_target] <= 1'b1;
 			   end
 			end

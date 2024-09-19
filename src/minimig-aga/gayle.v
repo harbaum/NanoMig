@@ -196,7 +196,7 @@ ide ide1
 	.mgmt_read(ide_read & ide_address[4]),
 	.mgmt_readdata(ide1_readdata)
 );
-
+   
 wire   intreq  = ide0_intreq | ide1_intreq;
 wire   gayleid = ~gayleid_cnt[1] | gayleid_cnt[0];
 

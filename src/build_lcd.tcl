@@ -68,6 +68,7 @@ add_file tang/nano20k/flash_dspi.v
 add_file tang/nano20k/gowin_clkdiv/gowin_clkdiv.v
 add_file tang/nano20k/gowin_rpll/pll_142m.v
 add_file tang/nano20k/gowin_dpb/sector_dpram.v
+add_file tang/nano20k/gowin_dpb/ide_dpram.v
 add_file tang/nano20k/top_lcd.sv
 add_file tang/nano20k/sdram.v
 add_file tang/nano20k/nanomig_lcd.cst

@@ -7,8 +7,6 @@
      openFPGALoader --external-flash -o 0x440000 kick13.rom
    or a single copy of e.g. a 512k diag rom
      openFPGALoader --external-flash -o 0x400000 DiagROM
-   or place a copy in the alternate rom slot (not supported yet)
-     openFPGALoader --external-flash -o 0x480000 DiagROM   
 */
  
 module top(
@@ -69,13 +67,12 @@ module top(
   output [2:0]	tmds_d_p
 );
 
-wire [5:0]	leds;
-   
 // physcial dsub9 joystick  
 wire [5:0] db9_joy = { !io[5], !io[0], !io[2], !io[1], !io[4], !io[3] };   
    
-assign leds[5:4] = 2'b00;
-assign leds[3] = |sd_rd;
+wire [5:0]	leds;
+assign leds[5] = 1'b0;
+assign leds[4] = |sd_rd;
 assign leds_n = ~leds;  
 
 // ============================== clock generation ===========================
@@ -199,8 +196,8 @@ wire [7:0] hid_joy0;
 wire [7:0] hid_joy1;
    
 // signals to wire the floppy controller to the sd card
-wire [3:0]  sd_rd;
-wire [3:0]  sd_wr = 4'b0000;
+wire [7:0]  sd_rd;
+wire [7:0]  sd_wr = 8'b00000000;
 wire [7:0]  sd_rd_data;
 wire [7:0]  sd_wr_data = 8'h00;
 wire [31:0] sd_sector;  
@@ -208,7 +205,7 @@ wire [8:0]  sd_byte_index;
 wire        sd_rd_byte_strobe;
 wire        sd_busy, sd_done;
 wire [31:0] sd_img_size;
-wire [3:0]  sd_img_mounted;
+wire [7:0]  sd_img_mounted;
 reg         sd_ready;
    
 sd_card #(
@@ -396,12 +393,14 @@ nanomig nanomig
 
  .pwr_led(leds[0]),
  .fdd_led(leds[1]),
+ .hdd_led(leds[2]),
  
  .memory_config(memory_config),
  .chipset_config(chipset_config),
  .floppy_config(floppy_config),
  .video_config(video_config),
- 
+ .ide_config(6'b000111),            // TODO: make configurable
+
  // video
  .hs(hs_n), // horizontal sync
  .vs(vs_n), // vertical sync
@@ -480,7 +479,7 @@ wire        flash_busy;
 // once the copy counter has run to zero, all rom has been copied
 wire		rom_done = (word_count == 0);
 
-assign leds[2] = !rom_done;  
+assign leds[3] = !rom_done;  
    
 reg [21:0]  flash_ram_addr;   
 reg         flash_ram_write;
