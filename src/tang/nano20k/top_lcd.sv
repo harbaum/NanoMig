@@ -65,8 +65,8 @@ module top(
 
 wire [5:0]	leds;
    
-assign leds[5:4] = 2'b00;
-assign leds[3] = |sd_rd;
+assign leds[5] = 1'b0;
+assign leds[4] = |sd_rd;
 assign leds_n = ~leds;  
 
 // ============================== clock generation ===========================
@@ -392,6 +392,7 @@ nanomig nanomig
 
  .pwr_led(leds[0]),
  .fdd_led(leds[1]),
+ .hdd_led(leds[2]),
  
  .memory_config(memory_config),
  .chipset_config(chipset_config),
@@ -477,7 +478,7 @@ wire        flash_busy;
 // once the copy counter has run to zero, all rom has been copied
 wire		rom_done = (word_count == 0);
 
-assign leds[2] = !rom_done;  
+assign leds[3] = !rom_done;  
    
 reg [21:0]  flash_ram_addr;   
 reg         flash_ram_write;
