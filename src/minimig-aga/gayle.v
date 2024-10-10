@@ -159,7 +159,8 @@ ide ide0
 
 	.use_fast(1'b1),
 	.no_data(ide0_nodata),
-
+        .drive_en(),
+ 
 	.mgmt_address(ide_address[3:0]),
 	.mgmt_write(ide_write & ~ide_address[4]),
 	.mgmt_writedata(ide_writedata),
@@ -186,6 +187,7 @@ ide ide1
 
 	.request(ide_req[5:3]),
 	.drq(ide1_drq),
+        .drive_en(),
 
 	.use_fast(1'b1),
 	.no_data(ide1_nodata),

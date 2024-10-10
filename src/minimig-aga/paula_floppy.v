@@ -116,7 +116,7 @@ module paula_floppy
         input   sdc_busy,                       // sd card has accepted request and is now processing it
         input   sdc_done,                       // sector transfer is done. Actually not used ...
 	input	sdc_byte_in_strobe,             // byte from sd card is ready
-	input   [8:0] sdc_byte_in_addr,         // index of sd card data byte within sector
+	input   [8:0] sdc_byte_addr,            // index of sd card data byte within sector
 	input   [7:0] sdc_byte_in_data,         // sd card data byte
 
 	// fifo / track display
@@ -336,14 +336,14 @@ always @(posedge clk) begin
 	   // write data into sector buffer and update checksum
 	   // write into lo/hi buffer to be able to read 16 bits from both buffers
 	   if(sdc_byte_in_strobe) begin
-	      if(sdc_byte_in_addr[0])  fd_dma_buf_odd[sdc_byte_in_addr[8:1]] <= sdc_byte_in_data;
-	      else                     fd_dma_buf_even[sdc_byte_in_addr[8:1]] <= sdc_byte_in_data;
-	      fd_dma_csum[sdc_byte_in_addr[1:0]] = 8'haa |
-				     fd_dma_csum[sdc_byte_in_addr[1:0]] ^
+	      if(sdc_byte_addr[0])  fd_dma_buf_odd[sdc_byte_addr[8:1]] <= sdc_byte_in_data;
+	      else                  fd_dma_buf_even[sdc_byte_addr[8:1]] <= sdc_byte_in_data;
+	      fd_dma_csum[sdc_byte_addr[1:0]] = 8'haa |
+				     fd_dma_csum[sdc_byte_addr[1:0]] ^
 				     sdc_byte_in_data ^ {1'b0, sdc_byte_in_data[7:1]};
 
 	      // last byte of sector receivced received
-	      if(sdc_byte_in_addr == 9'd511) begin
+	      if(sdc_byte_addr == 9'd511) begin
 		 // check if cpu still wants more data
 		 if(!lenzero) begin		   
 		    // sector has been read.

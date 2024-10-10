@@ -79,8 +79,8 @@ always @(posedge clk) if(io_read) begin
 				   4: io_readdata <= (hob ? cylinder[23:16]    : cylinder[7:0]     );
 				   5: io_readdata <= (hob ? cylinder[31:24]    : cylinder[15:8]    );
 				   6: io_readdata <= drv_addr;
-				   7: io_readdata <= present[drv_addr[4]]?status:8'h00;
-				  14: io_readdata <= present[drv_addr[4]]?status:8'h00;
+				   7: io_readdata <= status;
+				  14: io_readdata <= status;
 				  15: io_readdata <= { 2'b10, ~drv_addr[3:0], ~drv_addr[4], drv_addr[4]};
 			default: io_readdata <= 0;
 		endcase
@@ -344,14 +344,11 @@ always @(posedge clk) begin
       if(mgmt_cnt[0]) buf_h[mgmt_cnt[12:1]] <= mgmt_writedata;      
       else            buf_l[mgmt_cnt[12:1]] <= mgmt_writedata;      
    end
-`ifdef IDE_ENABLE_WRITE
    else
       buf_readdataR <= { buf_h[mgmt_cnt[12:1]], buf_l[mgmt_cnt[12:1]] };
-`endif
    
    /* buffer direction when writing to ide */
    if(write_data_io) begin
-`ifdef IDE_ENABLE_WRITE
       if(io_32) begin
 	 buf_h[io_cnt[12:1]] <= io_writedata[31:16];
 	 buf_l[io_cnt[12:1]] <= io_writedata[15:0];	 
@@ -359,7 +356,6 @@ always @(posedge clk) begin
 	 if(io_cnt[0]) buf_h[io_cnt[12:1]] <= io_writedata[15:0];
 	 else          buf_l[io_cnt[12:1]] <= io_writedata[15:0];
      end
-`endif
    end else
      buf_qR <= { buf_h[io_cnt[12:1]], buf_l[io_cnt[12:1]] };
 

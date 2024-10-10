@@ -234,7 +234,7 @@ module minimig
         input	      sdc_busy,
         input	      sdc_done,
 	input	      sdc_byte_in_strobe,
-	input [8:0]   sdc_byte_in_addr,
+	input [8:0]   sdc_byte_addr,
 	input [7:0]   sdc_byte_in_data, 
  
 	//video
@@ -556,7 +556,7 @@ paula PAULA1
         .sdc_busy(sdc_busy),
         .sdc_done(sdc_done),
 	.sdc_byte_in_strobe(sdc_byte_in_strobe),
-	.sdc_byte_in_addr(sdc_byte_in_addr),
+	.sdc_byte_addr(sdc_byte_addr),
 	.sdc_byte_in_data(sdc_byte_in_data),
 
 	.floppy_drives(floppy_config[3:2])

@@ -1,6 +1,7 @@
 module ws2812 (
-	input 	     clk,    // input clock source
-    input [23:0] color,  // requested color
+	input	     clk,    // input clock source
+	input	     reset,  // clock not stable enough
+	input [23:0] color,  // requested color
 	output reg   data    // output to the interface of WS2812
 );
 
@@ -25,9 +26,13 @@ reg [ 1:0] state       = 0; // synthesis preserve  - main state machine control
 reg [ 8:0] bit_send    = 0; // number of bits sent - increase for larger led strips/matrix
 reg [ 8:0] data_send   = 0; // number of data sent - increase for larger led strips/matrix
 reg [31:0] clk_count   = 0; // delay control
+reg	   WS2812_data_valid = 0;   
 reg [23:0] WS2812_data = 0; // WS2812 color data
 
-always@(posedge clk)
+always@(posedge clk) begin
+  if(reset)
+    WS2812_data_valid <= 1'b0;
+  else begin  
 	case (state)
 		IDLE:begin
 			data <= 0;
@@ -36,7 +41,8 @@ always@(posedge clk)
             end
 			else begin
 				clk_count <= 0;
-                if (WS2812_data != color) begin
+                if (WS2812_data != color || !WS2812_data_valid) begin
+		    WS2812_data_valid <= 1'b1;
                     WS2812_data <= color;
                     state <= DATA_SEND;
                 end
@@ -100,5 +106,8 @@ always@(posedge clk)
 					state    <= DATA_SEND;
 				end
 		end
-	endcase
+	endcase // case (state)
+  end
+end // always@ (posedge clk)
+   
 endmodule

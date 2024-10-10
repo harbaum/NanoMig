@@ -24,7 +24,7 @@ module sysctrl (
   input [1:0] 	    buttons, // S0 and S1 buttons on Tang Nano 20k
 
   output reg [1:0]  leds, // two leds can be controlled from the MCU
-  output reg [23:0] color, // a 24bit color to e.g. be used to drive the ws2812
+  output reg [23:0] color, // a 24bit BRG color to e.g. be used to drive the ws2812
 
   // values that can be configured by the user		
   output reg 	    system_reset,
@@ -32,6 +32,7 @@ module sysctrl (
   output reg        system_floppy_turbo,
   output reg [1:0]  system_chipset,
   output reg        system_video_mode,
+  output reg        system_ide_enable,
   output reg [1:0]  system_video_filter,
   output reg [1:0]  system_video_scanlines,
   output reg [1:0]  system_chipmem,
@@ -67,7 +68,8 @@ always @(posedge clk) begin
       color <= 24'h000000;  // color black -> rgb led off
 
       // stay in reset for about 3 seconds or until MCU releases reset
-      main_reset_timeout <= 32'd75_000_000;      
+      main_reset <= 1'b1;   
+      main_reset_timeout <= 32'd86_000_000;      
 
       int_ack <= 8'h00;
       coldboot = 1'b1;      // reset is actually the power-on-reset
@@ -83,12 +85,19 @@ always @(posedge clk) begin
       system_video_scanlines <= 2'd0;      
       system_chipmem <= 2'd0;      
       system_slowmem <= 2'd1;      
+      system_ide_enable <= 1'b0;      
    end else begin // if (reset)
 
       // release main reset after timeout
       if(main_reset_timeout) begin
 	 main_reset_timeout <= main_reset_timeout - 32'd1;
-	 main_reset <= 1'b0;
+
+	 if(main_reset_timeout == 32'd1) begin
+	    main_reset <= 1'b0;
+
+	    // BRG LED yellow if no MCU has responded
+	    color <= 24'h000202;
+	 end
       end
       
       int_ack <= 8'h00;
@@ -107,8 +116,8 @@ always @(posedge clk) begin
             if(command == 8'd0) begin
                 // return some pattern that would not appear randomly
 	            // on e.g. an unprogrammed device
-                if(state == 4'd1) data_out <= 8'h5c;
-                if(state == 4'd2) data_out <= 8'h42;
+                if(state == 4'd1) data_out <= 8'h5c;   // \ magic marker to identify a valid
+                if(state == 4'd2) data_out <= 8'h42;   // / FPGA core
                 if(state == 4'd3) data_out <= 8'h04;   // core id 4 = Amiga
             end
 	   
@@ -136,7 +145,7 @@ always @(posedge clk) begin
 
 	       // Amiga/Nanomig specific control values
                 if(state == 4'd2) begin
-                   // Value "R": coldboot(3), reset(1) or run(0)
+                   // Value "R": reset(1) or run(0)
                    if(id == "R") begin
 		      main_reset <= data_in[0];
 		      // cancel out-timeout if MCU is active
@@ -159,6 +168,8 @@ always @(posedge clk) begin
 		   if(id == "Y") system_chipmem <= data_in[1:0];
 		   // Value "X": Slowmem none(0), 512k(1), 1M(2) or 1.5M(3)
 		   if(id == "X") system_slowmem <= data_in[1:0];
+		   // Value "I": IDE disabled(0) or enabled(1)
+		   if(id == "I") system_ide_enable <= data_in[0];
                 end
             end
 

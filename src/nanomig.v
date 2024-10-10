@@ -50,12 +50,14 @@ module nanomig (
    input [7:0]	 sdc_img_mounted,
    input [31:0]	 sdc_img_size,
    output [7:0]	 sdc_rd,
+   output [7:0]	 sdc_wr,
    output [31:0] sdc_sector,
    input	 sdc_busy,
    input	 sdc_done,
    input	 sdc_byte_in_strobe,
-   input [8:0]	 sdc_byte_in_addr,
+   input [8:0]	 sdc_byte_addr,
    input [7:0]	 sdc_byte_in_data,
+   output [7:0]	 sdc_byte_out_data,
 		
    // (s)ram interface
    output [15:0] ram_data,    // sram data bus
@@ -283,25 +285,34 @@ cpu_wrapper cpu_wrapper
 // side. Things that are hardware specific all happen in the
 // FPGA. This includes the entire IDE handling.
 
+// https://wiki.osdev.org/ATA_PIO_Mode
 
 // TODO:
 // - clear IDE1 registers in startup
 // - use dpram
-  
-// main state machine
-reg [2:0] ide_state;
-localparam IDE_STATE_INIT     = 3'd0;  // state directly after reset
-localparam IDE_STATE_WAIT4CMD = 3'd1;
-localparam IDE_STATE_EXEC_CMD = 3'd2;
 
-reg [2:0] ide_exec;
-localparam IDE_EXEC_IDLE           = 3'd0;
-localparam IDE_EXEC_SET_CONFIG     = 3'd1;
-localparam IDE_EXEC_SET_REGS       = 3'd2;
-localparam IDE_EXEC_GET_REGS       = 3'd3;
-localparam IDE_EXEC_SEND_IDENTIFY  = 3'd4;
-localparam IDE_EXEC_SEND_PAYLOAD   = 3'd5;
-localparam IDE_EXEC_READ_SECTOR    = 3'd6;
+// state of individual drives   
+reg [1:0] ide_drv_state [2];
+localparam IDE_DRV_STATE_NONE    = 2'd0;  // no drive detected yet
+localparam IDE_DRV_STATE_MNT     = 2'd1;  // drive mounted, but not analyzed
+localparam IDE_DRV_STATE_PARSE   = 2'd2;  // parsing rdb block
+localparam IDE_DRV_STATE_PRESENT = 2'd3;  // drive is usable
+
+wire [1:0] ide_present = { ide_drv_state[1] == IDE_DRV_STATE_PRESENT,
+			   ide_drv_state[0] == IDE_DRV_STATE_PRESENT };
+   
+// main state machine
+reg ide_busy;
+reg [3:0] ide_exec;
+localparam IDE_EXEC_IDLE           = 4'd0;
+localparam IDE_EXEC_SET_CONFIG     = 4'd1;
+localparam IDE_EXEC_SET_REGS       = 4'd2;
+localparam IDE_EXEC_GET_REGS       = 4'd3;
+localparam IDE_EXEC_SEND_IDENTIFY  = 4'd4;
+localparam IDE_EXEC_READ_SECTOR    = 4'd5;
+localparam IDE_EXEC_SEND_PAYLOAD   = 4'd6;
+localparam IDE_EXEC_WRITE_SECTOR   = 4'd7;
+localparam IDE_EXEC_RECV_PAYLOAD   = 4'd8;
 
 reg [8:0] ide_exec_cnt;
       
@@ -329,7 +340,6 @@ reg [15:0] ide_cylinder;
 reg [7:0]  ide_sector;
 reg [3:0]  ide_head;   
 reg [7:0]  ide_sector_cnt;
-reg [7:0]  ide_sdc_cnt;
 reg [7:0]  ide_io_size;   
    
 reg	   ide_io_done;
@@ -337,90 +347,125 @@ reg	   ide_io_fast;
 reg [7:0]  ide_features;   
 reg	   ide_drv;
 
-reg	   ide_disk_present = 0;   
-reg	   ide_sdc_rd;
-reg	   ide_sdc_parse_rdb = 0;   
+reg [7:0]  ide_sdc_cnt;
+reg [1:0]  ide_sdc_rd;
+reg [1:0]  ide_sdc_wr;
 reg [31:0] ide_sdc_sector;   
    
+reg [1:0] ide_reported;   
+   
 wire [31:0] sdc_sector_int;  // from inside minimig/floppy
-assign sdc_sector = ide_sdc_rd?ide_sdc_sector:sdc_sector_int;      
-assign sdc_rd[7:4] = { 3'b000, ide_sdc_rd }; 
+assign sdc_sector = (ide_sdc_rd||ide_sdc_wr)?ide_sdc_sector:sdc_sector_int;      
+assign sdc_rd[7:4] = { 2'b00, ide_sdc_rd }; 
+assign sdc_wr = { 2'b00, ide_sdc_wr, 4'b0000 }; 
+   
+localparam DRIVES = 2;
    
 // default drive parameters. Should be taken from RDB sector 0   
-reg [15:0] cylinders;
-reg [15:0] sectors;
-reg [15:0] heads;
+reg [15:0] cylinders[DRIVES];
+reg [15:0] sectors[DRIVES];
+reg [15:0] heads[DRIVES];
 
 // total sectors could be calculated from cylinders * sectors * heads
 // which requires DSP units. Instead we simply use the image size
 // divided by 512
-reg [31:0] total_sectors;
+reg [31:0] total_sectors[DRIVES];
 
-reg	   debug = 1'b0;   
-//assign hdd_led = debug;   
-     
+// TODO:
+// - make sure we know which drive we are currently initializing
+// - use seperate state for both disks
+   
 always @(posedge clk_sys) begin
-   if (sdc_img_mounted[4]) begin
-      if( !sdc_img_size )
-	 ide_disk_present <= 1'b0;
-      else if (!sdc_busy && !ide_sdc_rd) begin  
-	 // image has just been mounted. Examine it further
-	 // by reading first sector.      
-	 ide_sdc_sector <= 32'd0;	
-	 ide_sdc_rd <= 1'b1;
-	 total_sectors <= { 9'd0, sdc_img_size[31:9] };	 
+   integer drv;
+
+   for(drv = 0; drv < DRIVES; drv = drv+1) begin
+      if (sdc_img_mounted[4+drv]) begin
+	 if( !sdc_img_size ) begin
+	    // image has been removed
+	    if(sdc_img_mounted[4+drv]) ide_drv_state[drv] <= IDE_DRV_STATE_NONE;
+	 end else begin  
+	    // image has just been mounted. Examine it further
+	    // by reading first sector.
+	    if(sdc_img_mounted[4+drv] && (ide_drv_state[drv] == IDE_DRV_STATE_NONE)) begin
+	       total_sectors[drv] <= { 9'd0, sdc_img_size[31:9] };	 
+	       ide_drv_state[drv] <= IDE_DRV_STATE_MNT;
+	    end
+	 end
+      end
+   
+      // check if drive is in state IDE_DRV_STATE_MNT and no sd read is in progress
+      if(!ide_sdc_rd && !sdc_busy) begin
+	 if(ide_drv_state[drv] == IDE_DRV_STATE_MNT) begin
+	    ide_sdc_sector <= 32'd0;
+	    ide_sdc_rd[drv] <= 1'b1;
+	 end
+      end
+   
+      // check if amiga wants to read a sector
+      if ( !sdc_busy && !ide_sdc_rd && ide_exec == IDE_EXEC_READ_SECTOR ) begin
+	 // this really only works with HW multipliers in the FPGA
+	 ide_sdc_sector <= (ide_cylinder * heads[0] + ide_head) * sectors[0] +
+			   ide_sector - 1;
+      
+	 ide_sdc_rd[ide_drv] <= 1'b1;
+      end
+      
+      // check if amiga wants to write
+      if ( !sdc_busy && !ide_sdc_wr && ide_exec == IDE_EXEC_WRITE_SECTOR ) begin
+	 // this really only works with HW multipliers in the FPGA
+	 ide_sdc_sector <= (ide_cylinder * heads[0] + ide_head) * sectors[0] +
+			   ide_sector - 1;
+      
+	 ide_sdc_wr[ide_drv] <= 1'b1;
+      end
+      
+      // sd card has accepted read request
+      if ( ide_sdc_rd && sdc_busy ) begin
+	 ide_sdc_rd <= 2'b00;
+
+	 // parse rdb unless the amiga has requested this sector
+	 if( ide_exec != IDE_EXEC_READ_SECTOR )
+	    if( ide_sdc_rd[drv]) ide_drv_state[drv] <= IDE_DRV_STATE_PARSE;	 
+      end
+
+      // sd card has accepted write request
+      if ( ide_sdc_wr && sdc_busy ) begin
+	 ide_sdc_wr <= 2'b00;
+
+	 // ...	 
+      end
+
+      // parsing the rdb in sector 0 of the harddisk image
+      // gives the cylinders, heads and sectors to be used
+      if ( (ide_drv_state[drv] == IDE_DRV_STATE_PARSE) && sdc_byte_in_strobe ) begin
+	 case ( sdc_byte_addr )
+	   // check for 'RDSK' header and stop parsing if that fails
+	   0: if ( sdc_byte_in_data != "R") ide_drv_state[drv] <= IDE_DRV_STATE_NONE;
+	   1: if ( sdc_byte_in_data != "D") ide_drv_state[drv] <= IDE_DRV_STATE_NONE;
+	   2: if ( sdc_byte_in_data != "S") ide_drv_state[drv] <= IDE_DRV_STATE_NONE;
+	   3: if ( sdc_byte_in_data != "K") ide_drv_state[drv] <= IDE_DRV_STATE_NONE;
+	   
+	   // long word 16 contains cylinders
+	   16*4+2: cylinders[drv][15:8] <= sdc_byte_in_data;
+	   16*4+3: cylinders[drv][ 7:0] <= sdc_byte_in_data;
+	   // long word 17 contains sectors
+	   17*4+2: sectors[drv][15:8] <= sdc_byte_in_data;
+	   17*4+3: sectors[drv][ 7:0] <= sdc_byte_in_data;
+	   // long word 18 contains heads
+	   18*4+2: heads[drv][15:8] <= sdc_byte_in_data;
+	   18*4+3: heads[drv][ 7:0] <= sdc_byte_in_data;
+
+	   // TODO: emit "drive changed" signal and make sure ide config
+	   // is being updated
+	   511: ide_drv_state[drv] <= IDE_DRV_STATE_PRESENT;	   
+	 endcase
       end
    end
-   
-   // amiga wants to read a sector
-   if ( !sdc_busy && !ide_sdc_rd && ide_exec == IDE_EXEC_READ_SECTOR ) begin
-      // this does hurt the fpga ...
-      ide_sdc_sector <= (ide_cylinder * heads + ide_head) * sectors +
-			ide_sector - 1;
-      
-      ide_sdc_rd <= 1'b1;
-   end
-   
-   // sd card has accepted request
-   if ( ide_sdc_rd && sdc_busy ) begin
-      ide_sdc_rd <= 1'b0;
-
-      // parse rdb unless the amiga has requested this sector
-      if( ide_exec != IDE_EXEC_READ_SECTOR )
-	ide_sdc_parse_rdb <= 1'b1;      
-   end
-
-   // parsing the rdb in sector 0 of the harddisk image
-   // gives the cylinders, heads and sectors to be used
-   if ( ide_sdc_parse_rdb && sdc_byte_in_strobe ) begin
-      case ( sdc_byte_in_addr )
-	// check for 'RDSK' header and stop parsing if that fails
-	0: if ( sdc_byte_in_data != "R") ide_sdc_parse_rdb <= 1'b0;
-	1: if ( sdc_byte_in_data != "D") ide_sdc_parse_rdb <= 1'b0;
-	2: if ( sdc_byte_in_data != "S") ide_sdc_parse_rdb <= 1'b0;
-	3: if ( sdc_byte_in_data != "K") ide_sdc_parse_rdb <= 1'b0;	
-	
-	// long word 16 contains cylinders
-	16*4+2: cylinders[15:8] <= sdc_byte_in_data;
-	16*4+3: cylinders[ 7:0] <= sdc_byte_in_data;
-	// long word 17 contains sectors
-	17*4+2: sectors[15:8] <= sdc_byte_in_data;
-	17*4+3: sectors[ 7:0] <= sdc_byte_in_data;
-	// long word 18 contains heads
-	18*4+2: heads[15:8] <= sdc_byte_in_data;
-	18*4+3: heads[ 7:0] <= sdc_byte_in_data;
-
-	511: begin
-	   ide_sdc_parse_rdb <= 1'b0;
-	   ide_disk_present <= 1'b1;
-	end
-      endcase // case ( sdc_byte_in_addr )      
-   end
 end
-   
+  
 always @(posedge clk_sys) begin
    if(reset) begin
-      ide_state <= IDE_STATE_INIT;      
+      ide_busy <= 1'b0;      
       ide_exec <= IDE_EXEC_IDLE;
       ide_cmd <= 8'h00;      
 
@@ -429,30 +474,32 @@ always @(posedge clk_sys) begin
       ide_io_fast <= 1'b0;
       ide_features <= 8'h00;
 
+      ide_reported   <= 2'b00;      
       ide_spb        <= 8'd16;      
       ide_error      <= 8'h00;      
-      ide_status     <= 8'h00;
+      ide_status     <= 8'h00;      
       ide_drv        <= 1'b0;      
       ide_cylinder   <= 16'd0;
       ide_sector     <= 8'd1;
       ide_sector_cnt <= 8'd0;
       ide_io_size    <= 8'd1;
-   end else begin
-      case (ide_state)
-	// system has started and just got out of reset
-	IDE_STATE_INIT: begin
-	   // if the execution engine is idle and a IDE disk image has been
-	   // mounted, then configue ide0
-	   if(ide_exec == IDE_EXEC_IDLE && ide_disk_present) begin
-	      ide_status <= 8'b0100_0000;  // drive ready
+   end else begin // if (reset)
+      
+      if(!ide_busy) begin      
+	   // check if the presence of drives has changed ...
+	   if(ide_reported != ide_present) begin
 
+	      // ... and send updated config byte if so
 	      ide_exec <= IDE_EXEC_SET_CONFIG;
 	      ide_exec_cnt <= 9'd0;
-	   end
-	end
 
-	// system is waiting for IDE command from core
-	IDE_STATE_WAIT4CMD: begin
+	      // at least one drive?
+	      if(ide_present) ide_status <= 8'b0100_0000;  // drive ready
+	      else	      ide_status <= 8'b0000_0000;  // no drive ready ...
+	      
+	      ide_reported <= ide_present;	      
+	   end
+	   
 	   // check if a command request has been received for ide0
 	   // ide1 is currently not supported (and so is ide0 slave)
 	   if(ide_request[2:0] == 3'b100) begin
@@ -461,7 +508,7 @@ always @(posedge clk_sys) begin
 	      ide_error <= 8'h00;     // clear error
 
 	      // read registers once a command has been received
-	      ide_state <= IDE_STATE_EXEC_CMD;
+	      ide_busy <= 1'b1;	      
 	      ide_exec <= IDE_EXEC_GET_REGS;
 	      ide_exec_cnt <= 9'd0;	      
 	   end
@@ -469,31 +516,33 @@ always @(posedge clk_sys) begin
 	   // request to continue a multi sector transfer that
 	   // exceeds the max io size
 	   if(ide_request[2:0] == 3'b101) begin
-	      ide_state <= IDE_STATE_EXEC_CMD;
+	      // check if it's a read or write in prgress
 
-	      // jump right to next read
-	      ide_exec <= IDE_EXEC_READ_SECTOR;
-	      ide_exec_cnt <= 9'd0;
+	      if ( ide_cmd == 8'hc4 ) begin
+		 // read multiple command: jump right to next read
+		 ide_exec <= IDE_EXEC_READ_SECTOR;
+		 ide_exec_cnt <= 9'd0;
 
-	      // check how many sectors can be sent in this
-	      // transfer
-	      if ( ide_sector_cnt < ide_spb ) begin
-		 ide_sdc_cnt <= ide_sector_cnt;
-		 ide_io_size <= ide_sector_cnt;
-	      end else begin
-                 ide_sdc_cnt <= ide_spb;
-		 ide_io_size <= ide_spb;
+		 ide_busy <= 1'b1;	      
+
+		 // check how many sectors can be sent in this
+		 // transfer
+		 if ( ide_sector_cnt < ide_spb ) begin
+		    ide_sdc_cnt <= ide_sector_cnt;
+		    ide_io_size <= ide_sector_cnt;
+		 end else begin
+                    ide_sdc_cnt <= ide_spb;
+		    ide_io_size <= ide_spb;
+		 end
+	      end else begin // if ( ide_cmd == 8'hc4 )
+		 // write (single and multiple), read data written by amiga
+		 ide_exec <= IDE_EXEC_WRITE_SECTOR;
+		 ide_busy <= 1'b1;	      
 	      end
+	      
 	   end
-	end
-
-	// system is processing an IDE command
-	IDE_STATE_EXEC_CMD: begin
-
-	end
-	   
-      endcase // case (ide_state)
-
+      end // if (!ide_busy)
+      
       case (ide_exec)
 
 	IDE_EXEC_SET_CONFIG: begin
@@ -512,20 +561,18 @@ always @(posedge clk_sys) begin
 
 	IDE_EXEC_SEND_PAYLOAD: begin
 	   // transmit 256 words of payload
-	   if ( sdc_byte_in_strobe && sdc_byte_in_addr == 9'd511 ) begin
-	      // decrease sector counter and increase sector number. This
-	      // is actually a hack as the increase should happen over
-	      // sector/head/cylinder. But this should work for now
+	   if ( sdc_byte_in_strobe && sdc_byte_addr == 9'd511 ) begin
+	      // decrease sector counter and increase sector number.
 	      ide_sector_cnt <= ide_sector_cnt - 8'd1;
 
 	      // advance to next sector
 	      // ide_sector goes from 1 to sectors,
 	      // ide_head goes from 0 to heads-1
-	      if ( ide_sector < sectors )
+	      if ( ide_sector < sectors[0] )
 		ide_sector <= ide_sector + 8'd1;
 	      else begin
 		 ide_sector <= 8'd1;
-		 if( ide_head < heads-1 )
+		 if( ide_head < heads[0]-1 )
 		   ide_head <= ide_head + 8'd1;
 		 else begin
 		    ide_head <= 8'd0;
@@ -534,7 +581,7 @@ always @(posedge clk_sys) begin
 	      end
 	      
 	      ide_sdc_cnt <= ide_sdc_cnt - 8'd1;	      
-	      
+
 	      if ( ide_sdc_cnt <= 1 ) begin
 		 // finally send the registers incl irq		 
 		 ide_status[3:2] <= 2'b11;  // raise irq and drq
@@ -572,21 +619,91 @@ always @(posedge clk_sys) begin
 	   end
 	end
 
+	IDE_EXEC_WRITE_SECTOR: begin
+	   // sd card has accepted request
+	   if ( ide_sdc_wr && sdc_busy ) begin
+	      ide_exec <= IDE_EXEC_RECV_PAYLOAD;
+	      ide_exec_cnt <= 9'd0;
+	   end
+	end
+
+	IDE_EXEC_RECV_PAYLOAD: begin
+	   // acknowwledge by IRQ once sd card has received the full sector
+	   if ( sdc_done ) begin
+
+	      // decrease sector counter and increase sector number.
+	      ide_sector_cnt <= ide_sector_cnt - 8'd1;
+
+	      // advance to next sector
+	      // ide_sector goes from 1 to sectors,
+	      // ide_head goes from 0 to heads-1
+	      if ( ide_sector < sectors[0] )
+		ide_sector <= ide_sector + 8'd1;
+	      else begin
+		 ide_sector <= 8'd1;
+		 if( ide_head < heads[0]-1 )
+		   ide_head <= ide_head + 8'd1;
+		 else begin
+		    ide_head <= 8'd0;
+		    ide_cylinder <= ide_cylinder + 16'd1;
+		 end
+	      end
+	      
+	      ide_sdc_cnt <= ide_sdc_cnt - 8'd1;	      
+
+	      // check if sdc sector counter is/will be down to zero
+	      if ( ide_sdc_cnt <= 1 ) begin
+		 // all sectors have been written
+
+		 // check how many sectors can be sent in next
+		 // transfer
+		 if ( ide_sector_cnt > 1 ) begin
+		    ide_status[3] <= 1'b1;  // more data to send: keep drq active
+
+		    // TODO: Test this by sending more than 32 sectors at once
+		    
+		    // ide_sector_cnt has just been decreased in this same event
+		    // so the following needs to assume it's not been decreased, yet
+		    if ( (ide_sector_cnt-1) < ide_spb ) begin
+		       ide_sdc_cnt <= ide_sector_cnt - 1;
+		       ide_io_size <= ide_sector_cnt - 1;
+		    end else begin
+                       ide_sdc_cnt <= ide_spb;
+		       ide_io_size <= ide_spb;
+		    end
+		 end else
+		   ide_status[3] <= 1'b0;  // no more data to send: no drq
+
+		 // keep drq raised if not all sectors have been written
+		 ide_status[3] <= (ide_sector_cnt > 1);
+		 ide_status[2] <= 1'b1;  // raise irq
+		 ide_status[6] <= 1'b1;  // raise rdy
+		 ide_exec <= IDE_EXEC_SET_REGS;
+		 ide_exec_cnt <= 9'd0;
+	      end else begin
+		 // more sectors to write
+		 ide_exec <= IDE_EXEC_WRITE_SECTOR;
+		 ide_busy <= 1'b1;	      
+	      end
+	   end	 
+	end
+      
+
 	IDE_EXEC_GET_REGS: begin
 	   // process incoming data
 	   if ( ide_exec_cnt[0] ) begin
 	      case (ide_exec_cnt[5:1])
-		0: begin 
+		0: begin
 		   ide_features <= ide_readdata[15:8];
 		   ide_io_fast  <= ide_readdata[1];
 		   ide_io_done  <= ide_readdata[0];
 		end
 		1: { ide_sector, ide_sector_cnt } <= ide_readdata;
 		2: ide_cylinder <= ide_readdata;
-		//3: { ide_sector[15:8], ide_sector_cnt[15:8] } <= ide_readdata;
-		//4: ide_cylinder[31:16] <= ide_readdata;
+		// unused 3: { ide_sector[15:8], ide_sector_cnt[15:8] } <= ide_readdata;
+		// unused 4: ide_cylinder[31:16] <= ide_readdata;
 		5: begin
-		   // bit 7 and 5 should always be 1
+		   // bit 7 and 5 should always be 1, bit 4 identifies master or slave drive
 		   ide_cmd  <= ide_readdata[15:8];
 		   ide_drv  <= ide_readdata[4];
 		   ide_head <= ide_readdata[3:0];
@@ -597,8 +714,11 @@ always @(posedge clk_sys) begin
 	   // receive 6 register words
 	   if ( ide_exec_cnt != { 8'd5, 1'b1 } )
 	     ide_exec_cnt <= ide_exec_cnt + 9'd1;
-	   else if(!ide_readdata[4] /* -> ide_drv */) begin
-	      // for now only master (drv == 0) is supported
+
+	   // check if the requested drive is actually present
+	   // TODO: try ide_present[ide_readdata[4]]
+	   else if((!ide_readdata[4] && ide_present[0]) ||
+		   ( ide_readdata[4] && ide_present[1]) /* -> ide_drv */) begin
 	      ide_status <= 8'b0100_0000;  // drive ready
 
 	      // done receiving registers, determine how to
@@ -662,8 +782,36 @@ always @(posedge clk_sys) begin
 		 ide_exec <= IDE_EXEC_SET_REGS;
 		 ide_exec_cnt <= 9'd0;	      
 		 
+	      end else if ( ide_readdata[15:12] /* -> ide_cmd[7:4] */ == 4'h3) begin
+		 // command 3x: write
+
+		 ide_status[3:2] <= 2'b11;  // raise irq and drq
+		 ide_exec <= IDE_EXEC_SET_REGS;
+		 ide_exec_cnt <= 9'd0;	      
+		 		 
+		 // prepare to write one sector to sd card
+		 ide_sdc_cnt <= 8'd1;				  
+		 ide_io_size <= 8'd1;
+		 
+	      end else if ( ide_readdata[15:8] /* -> ide_cmd */ == 8'hc5) begin
+		 // command c5: write multiple
+
+		 ide_status[3:2] <= 2'b11;  // raise irq and drq
+		 ide_exec <= IDE_EXEC_SET_REGS;
+		 ide_exec_cnt <= 9'd0;	      
+		 		 
+		 // check how many sectors can be sent in this transfer
+		 if ( ide_sector_cnt < ide_spb ) begin
+		    ide_sdc_cnt <= ide_sector_cnt;
+		    ide_io_size <= ide_sector_cnt;
+		 end else begin
+                    ide_sdc_cnt <= ide_spb;
+		    ide_io_size <= ide_spb;
+		 end
+
 	      end else begin
-		 // unknown command
+
+		 // unknown command TODO
 		 ide_status[0] <= 1'b1;  // raise error
 		 ide_status[2] <= 1'b1;  // raise irq
 		 ide_error <= 8'h04;     // abort
@@ -671,8 +819,8 @@ always @(posedge clk_sys) begin
 		 ide_exec <= IDE_EXEC_SET_REGS;
 		 ide_exec_cnt <= 9'd0;	      
 	      end
-	   end else begin // if (!ide_drv)
-	      // slave is currently not supported
+	   end else begin
+	      // drive not enabled
 	      ide_status[0] <= 1'b1;  // raise error
 	      ide_status[2] <= 1'b1;  // raise irq
 	      ide_error <= 8'h04;     // abort
@@ -687,10 +835,8 @@ always @(posedge clk_sys) begin
 	   if ( ide_exec_cnt != { 8'd5, 1'b1 } )
 	     ide_exec_cnt <= ide_exec_cnt + 9'd1;
 	   else begin
-	      debug <= 1'b1;
-		 
 	      // done sending registers
-	      ide_state <= IDE_STATE_WAIT4CMD;
+	      ide_busy <= 1'b0;
 	      ide_exec <= IDE_EXEC_IDLE;
 	      ide_exec_cnt <= 9'd0;
 	   end
@@ -714,13 +860,13 @@ wire [5:0] ide_request;
 
 // IDE identify device reply
 wire [15:0] ide_identify_data =
-	    (ide_exec_cnt[8:1] ==  8'd0)?16'h0040:  //word 0
-	    (ide_exec_cnt[8:1] ==  8'd1)?cylinders: //word 1
+	    (ide_exec_cnt[8:1] ==  8'd0)?16'h0040:  //word 0 -> bit 6 = fixed drive
+	    (ide_exec_cnt[8:1] ==  8'd1)?cylinders[ide_drv]: //word 1
 	    //word 2 reserved
-	    (ide_exec_cnt[8:1] ==  8'd3)?heads:	    //word 3
+	    (ide_exec_cnt[8:1] ==  8'd3)?heads[ide_drv]:  //word 3
 	    //word 4 obsolete
 	    //word 5 obsolete
-	    (ide_exec_cnt[8:1] ==  8'd6)?sectors:   //word 6
+	    (ide_exec_cnt[8:1] ==  8'd6)?sectors[ide_drv]:   //word 6
 	    //word 7 vendor specific
 	    //word 8 vendor specific
 	    //word 9 vendor specific
@@ -746,11 +892,11 @@ wire [15:0] ide_identify_data =
 	    (ide_exec_cnt[8:1] == 8'd51)?16'h0200:	//word 51 pio timing
 	    (ide_exec_cnt[8:1] == 8'd52)?16'h0200:	//word 52 pio timing
 	    (ide_exec_cnt[8:1] == 8'd53)?16'h0007:	//word 53 valid fields
-	    (ide_exec_cnt[8:1] == 8'd54)?cylinders:     //word 54
-	    (ide_exec_cnt[8:1] == 8'd55)?heads:	        //word 55
-	    (ide_exec_cnt[8:1] == 8'd56)?sectors:       //word 56
-	    (ide_exec_cnt[8:1] == 8'd57)?total_sectors[15:0]://word 57
-	    (ide_exec_cnt[8:1] == 8'd58)?total_sectors[31:16]://word 58
+	    (ide_exec_cnt[8:1] == 8'd54)?cylinders[ide_drv]:     //word 54
+	    (ide_exec_cnt[8:1] == 8'd55)?heads[ide_drv]:	        //word 55
+	    (ide_exec_cnt[8:1] == 8'd56)?sectors[ide_drv]:       //word 56
+	    (ide_exec_cnt[8:1] == 8'd57)?total_sectors[ide_drv][15:0]://word 57
+	    (ide_exec_cnt[8:1] == 8'd58)?total_sectors[ide_drv][31:16]://word 58
 	    (ide_exec_cnt[8:1] == 8'd59)?16'h110:	//word 59 multiple sectors
 	    //word 60 LBA-28
 	    //word 61 LBA-28
@@ -780,13 +926,15 @@ wire [15:0] ide_identify_data =
 	    //word 103 LBA-48
 	    16'h0000;
       
-wire [4:0] ide_address = { 1'b0,                                // only support master by now
+wire [4:0] ide_address = { 1'b0,                                // only support ide0
 	   (ide_exec == IDE_EXEC_SET_CONFIG)?4'd6:              // config is management register 6
 	   (ide_exec == IDE_EXEC_SET_REGS)?ide_exec_cnt[4:1]:   // write registers via mgmt registers 0 .. 5
 	   (ide_exec == IDE_EXEC_GET_REGS)?ide_exec_cnt[4:1]:   // read -"-
 	   (ide_exec == IDE_EXEC_SEND_IDENTIFY)?4'd15:          // data transfer from/to ide0 via register 15
 	   (ide_exec == IDE_EXEC_READ_SECTOR)?4'd15:            // -"-
 	   (ide_exec == IDE_EXEC_SEND_PAYLOAD)?4'd15:           // -"-
+	   (ide_exec == IDE_EXEC_WRITE_SECTOR)?4'd15:           // -"-
+	   (ide_exec == IDE_EXEC_RECV_PAYLOAD)?4'd15:           // -"-
 	   4'd0 };   
 
 // data for "set register"
@@ -802,10 +950,16 @@ wire [15:0] ide_set_register_data =
 // assemble words from bytes
 reg [7:0] sdc_even_byte;   
 always @(posedge clk_sys)
-  if ( sdc_byte_in_strobe && !sdc_byte_in_addr[0] )
+  if ( sdc_byte_in_strobe && !sdc_byte_addr[0] )
     sdc_even_byte <= sdc_byte_in_data;
 
+// wire [15:0] ide_payload_data = ide_drv?{ sdc_byte_in_data, sdc_even_byte }:16'h0000;  
 wire [15:0] ide_payload_data = { sdc_byte_in_data, sdc_even_byte };  
+
+// configure the presence of the drives
+wire [15:0] ide_config_data = { 8'h00, 
+				(ide_drv_state[1] == IDE_DRV_STATE_PRESENT)?4'hf:4'h0, 
+				(ide_drv_state[0] == IDE_DRV_STATE_PRESENT)?4'hf:4'h0 };   
 	    
 // multiplex data to be written to the ide management interface   
 assign ide_writedata =
@@ -813,8 +967,7 @@ assign ide_writedata =
       (ide_exec == IDE_EXEC_READ_SECTOR)?ide_payload_data:
       (ide_exec == IDE_EXEC_SEND_PAYLOAD)?ide_payload_data:
       (ide_exec == IDE_EXEC_SET_REGS)?ide_set_register_data:
-      (ide_exec == IDE_EXEC_SET_CONFIG && ide_disk_present)?16'h00_0f:
-      (ide_exec == IDE_EXEC_SET_CONFIG)?16'h00_0f:
+      (ide_exec == IDE_EXEC_SET_CONFIG)?ide_config_data:
       16'h0000;
 
 // there some side effects of this besides writing the data itself
@@ -828,14 +981,36 @@ assign ide_writedata =
 // generate read and write signals for the ide management interface   
 wire ide_read = !ide_exec_cnt[0] &&
      (ide_exec == IDE_EXEC_GET_REGS); 
+
+// IDE payload is being received in 16 bit words from but is being sent
+// as bytes to the SD card
+assign sdc_byte_out_data = sdc_byte_addr[0]?ide_readdata[15:8]:ide_readdata[7:0];   
+
+// The sd card just requests addresses and minimig returns matching data. The ide uses ide_write
+// as a trigger signal to advance to the next (word) address. We thus generate a trigger
+// whenever the address sent by SD card changes. This can then be used as a write
+// signal to minimigs ide interface.
+reg sdc_addr_toggle;   
+always @(posedge clk_sys) begin
+   reg last_sdc_addr;   
+   last_sdc_addr <= sdc_byte_addr[1];
+
+   // generate a trigger after every odd byte
+   sdc_addr_toggle <= last_sdc_addr ^ sdc_byte_addr[1];   
+end
    
 wire ide_write = (!ide_exec_cnt[0] && (
      (ide_exec == IDE_EXEC_SET_CONFIG) || 
      (ide_exec == IDE_EXEC_SET_REGS) || 
      (ide_exec == IDE_EXEC_SEND_IDENTIFY))
 
-     // forward the word every seconds byte received from the sd card
-     ||(ide_exec == IDE_EXEC_SEND_PAYLOAD && sdc_byte_in_strobe && sdc_byte_in_addr[0]));
+     // the address toggles one time _after_ all payload has received
+     // this is happening in the write sector state before the next setcor is being read
+     ||((ide_exec == IDE_EXEC_WRITE_SECTOR) && sdc_addr_toggle)
+     ||((ide_exec == IDE_EXEC_RECV_PAYLOAD) && sdc_addr_toggle)
+
+     // forward the word every second byte received from the sd card
+     ||((ide_exec == IDE_EXEC_SEND_PAYLOAD) && sdc_byte_in_strobe && sdc_byte_addr[0]));
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -853,7 +1028,7 @@ wire	   hs_in, vs_in;
 
 // JOY0 is actually the joystick port and and joy1 is being driven by usb mouse data
 // JOY2 and JOY3 
-wire [15:0] JOY0 = { 8'h0, joystick };   
+wire [15:0] JOY0 = { 8'h00, joystick };   
 wire [15:0] JOY1 = 16'h0000;
 wire [15:0] JOY2 = 16'h0000;
 wire [15:0] JOY3 = 16'h0000;   
@@ -970,11 +1145,12 @@ minimig minimig
         .sdc_img_mounted    ( sdc_img_mounted[3:0]),
         .sdc_img_size       ( sdc_img_size        ),  // length of image file
         .sdc_rd             ( sdc_rd[3:0]         ),
+//        .sdc_wr             ( sdc_wr[3:0]         ),
         .sdc_sector         ( sdc_sector_int      ),
         .sdc_busy           ( sdc_busy            ),
         .sdc_done           ( sdc_done            ),
 	.sdc_byte_in_strobe ( sdc_byte_in_strobe  ),
-	.sdc_byte_in_addr   ( sdc_byte_in_addr    ),
+	.sdc_byte_addr      ( sdc_byte_addr       ),
 	.sdc_byte_in_data   ( sdc_byte_in_data    ),
  
 	.ide_fast     (                 ),
