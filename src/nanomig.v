@@ -312,7 +312,8 @@ localparam IDE_EXEC_SEND_IDENTIFY  = 4'd4;
 localparam IDE_EXEC_READ_SECTOR    = 4'd5;
 localparam IDE_EXEC_SEND_PAYLOAD   = 4'd6;
 localparam IDE_EXEC_WRITE_SECTOR   = 4'd7;
-localparam IDE_EXEC_RECV_PAYLOAD   = 4'd8;
+// localparam IDE_EXEC_START_PAYLOAD  = 4'd8;
+localparam IDE_EXEC_RECV_PAYLOAD   = 4'd9;
 
 reg [8:0] ide_exec_cnt;
       
@@ -627,6 +628,14 @@ always @(posedge clk_sys) begin
 	   end
 	end
 
+//	IDE_EXEC_START_PAYLOAD: begin
+//	   // start payload waits for the sdc_byte_addr to reach 1,
+//	   // to suppress gernerating an ide_write signal for
+//	   // the first word to be read
+//	   if( sdc_byte_addr == 9'd1 )
+//	     ide_exec <= IDE_EXEC_RECV_PAYLOAD;
+//	end
+	   
 	IDE_EXEC_RECV_PAYLOAD: begin
 	   // acknowwledge by IRQ once sd card has received the full sector
 	   if ( sdc_done ) begin
@@ -935,6 +944,7 @@ wire [4:0] ide_address = { 1'b0,                                // only support 
 	   (ide_exec == IDE_EXEC_SEND_PAYLOAD)?4'd15:           // -"-
 	   (ide_exec == IDE_EXEC_WRITE_SECTOR)?4'd15:           // -"-
 	   (ide_exec == IDE_EXEC_RECV_PAYLOAD)?4'd15:           // -"-
+//	   (ide_exec == IDE_EXEC_START_PAYLOAD)?4'd15:          // -"-
 	   4'd0 };   
 
 // data for "set register"

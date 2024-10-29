@@ -105,13 +105,6 @@ Gowin_CLKDIV clk_div_5 (
 );
 
 wire	clk_28m = clk_pixel;
-
-// generate 7 Mhz from 28Mhz
-//reg [1:0] clk_cnt;
-//always @(posedge clk_28m)
-//  clk_cnt <= clk_cnt + 2'd1; 
-//wire	  clk_7m = clk_cnt[1];
-
 wire	clk7_en;   
 wire	clk7n_en;   
 
@@ -121,11 +114,12 @@ wire [1:0] osd_chipmem;         // 0=512k, 1=1M, 2=1.5M, 3=2M
 wire [1:0] osd_slowmem;         // 0=None, 1=512k, 2=1M, 3=1.5M
 wire [1:0] osd_floppy_drives;
 wire       osd_floppy_turbo;
+wire       osd_ide_enable;
 wire [1:0] osd_chipset;         // 0=OCS-A500, 1=OCS-A1000, 2=ECS
 wire       osd_video_mode;      // PAL (0=PAL, 1=NTSC)
 wire [1:0] osd_video_filter;
 wire [1:0] osd_video_scanlines;
-   
+
 // generate a reset for some time after rom has been initialized
 reg [15:0] reset_cnt;
 always @(negedge clk_28m) begin
@@ -135,6 +129,7 @@ always @(negedge clk_28m) begin
         reset_cnt = reset_cnt - 16'd1;
 end
 
+// this is the reset that goes into the nanomig itself
 wire cpu_reset = |reset_cnt;
 wire sdram_ready;
 
@@ -144,6 +139,7 @@ wire sdram_ready;
 wire [23:0] ws2812_color;
 ws2812 ws2812_inst (
     .clk(clk_28m),
+	.reset(!pll_lock),
     .color(ws2812_color),
     .data(ws2812)
 );
@@ -166,7 +162,7 @@ mcu_spi mcu (
 	 .clk(clk_28m),
 	 .reset(!pll_lock),
 
-	 // SPI interface to BL616
+	 // SPI interface to FPGA Companion
      .spi_io_ss(m0s[2]),
      .spi_io_clk(m0s[3]),
      .spi_io_din(m0s[1]),
@@ -197,9 +193,9 @@ wire [7:0] hid_joy1;
    
 // signals to wire the floppy controller to the sd card
 wire [7:0]  sd_rd;
-wire [7:0]  sd_wr = 8'b00000000;
+wire [7:0]  sd_wr;
 wire [7:0]  sd_rd_data;
-wire [7:0]  sd_wr_data = 8'h00;
+wire [7:0]  sd_wr_data;
 wire [31:0] sd_sector;  
 wire [8:0]  sd_byte_index;
 wire        sd_rd_byte_strobe;
@@ -294,6 +290,7 @@ sysctrl sysctrl (
 		.system_reset(osd_reset),
 		.system_floppy_drives(osd_floppy_drives),
 		.system_floppy_turbo(osd_floppy_turbo),
+		.system_ide_enable(osd_ide_enable),
 	    .system_chipset(osd_chipset),
 		.system_video_mode(osd_video_mode),
 		.system_video_filter(osd_video_filter),
@@ -382,6 +379,7 @@ wire [5:0] chipset_config = { 1'b0,osd_chipset,osd_video_mode,1'b0 };
 wire [7:0] memory_config = { 4'b0_000, osd_slowmem, osd_chipmem };   
 wire [3:0] floppy_config = { osd_floppy_drives, 1'b0, osd_floppy_turbo };
 wire [3:0] video_config = { osd_video_filter, osd_video_scanlines };   
+wire [5:0] ide_config = { 5'b00000, osd_ide_enable };   
    
 nanomig nanomig
 (
@@ -399,7 +397,7 @@ nanomig nanomig
  .chipset_config(chipset_config),
  .floppy_config(floppy_config),
  .video_config(video_config),
- .ide_config(6'b000111),            // TODO: make configurable
+ .ide_config(ide_config),
 
  // video
  .hs(hs_n), // horizontal sync
@@ -422,16 +420,18 @@ nanomig nanomig
  .kbd_mouse_data(kbd_mouse_data),
  .joystick(joystick),
 				 
- // sd card interface for floppy disk emulation
+ // sd card interface for floppy disk and hdd emulation
  .sdc_img_size(sd_img_size),
  .sdc_img_mounted(sd_img_mounted), 
  .sdc_rd(sd_rd),
+ .sdc_wr(sd_wr),
  .sdc_sector(sd_sector),
  .sdc_busy(sd_busy),
  .sdc_done(sd_done), 
  .sdc_byte_in_strobe(sd_rd_byte_strobe),
- .sdc_byte_in_addr(sd_byte_index),
+ .sdc_byte_addr(sd_byte_index),
  .sdc_byte_in_data(sd_rd_data),
+ .sdc_byte_out_data(sd_wr_data),
  
  // (s)ram interface
  .ram_data(ram_dout),       // sram data bus
@@ -603,16 +603,20 @@ flash flash (
 
 /* -------------------- HDMI video and audio -------------------- */
 
+// latch audio, so it's stable during 48khz transfer
+reg [15:0] audio_reg [2];  
+   
 // generate 48khz audio clock
 reg clk_audio;
 reg [8:0] aclk_cnt;
 always @(posedge clk_pixel) begin
     // divisor = pixel clock / 48000 / 2 - 1
     if(aclk_cnt < `PIXEL_CLOCK / 48000 / 2 -1)
-        aclk_cnt <= aclk_cnt + 9'd1;
+      aclk_cnt <= aclk_cnt + 9'd1;
     else begin
-        aclk_cnt <= 9'd0;
-        clk_audio <= ~clk_audio;
+       aclk_cnt <= 9'd0;
+       clk_audio <= ~clk_audio;
+	   audio_reg <= { { 1'b0, ~audio_left[14],audio_left[13:0]}, {1'b0, ~audio_right[14],audio_right[13:0]}};	   
     end
 end
    
@@ -629,7 +633,7 @@ video_analyzer video_analyzer (
     .interlace   ( interlace ),
     .vreset      ( vreset    )
 );
-   
+
 hdmi #(
     .AUDIO_RATE(48000), .AUDIO_BIT_WIDTH(16),
     .VENDOR_NAME( { "MiSTle", 16'd0} ),
@@ -638,7 +642,7 @@ hdmi #(
   .clk_pixel_x5(clk_pixel_x5),
   .clk_pixel(clk_pixel),
   .clk_audio(clk_audio),
-  .audio_sample_word( { { 1'b0, ~audio_left[14],audio_left[13:0]}, {1'b0, ~audio_right[14],audio_right[13:0]}} ),
+  .audio_sample_word( audio_reg ),
   .tmds(tmds),
   .tmds_clock(tmds_clock),
 
