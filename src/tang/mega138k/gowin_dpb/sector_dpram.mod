@@ -1,0 +1,24 @@
+-series GW5AST
+-device GW5AST-138
+-device_version B
+-package FCPBGA676A
+-part_number GW5AST-LV138FPG676AES
+
+
+-mod_name sector_dpram
+-file_name sector_dpram
+-path /home/harbaum/projekte/private_stuff/mistlite/nanomig/src/tang/mega138k/gowin_dpb/
+-type RAM_DP
+-file_type vlg
+-bram_b true
+-dev_type GW5AST-138B
+-depth_0 512
+-depth_1 512
+-width_0 8
+-width_1 8
+-read_mode_0 bypass
+-read_mode_1 bypass
+-write_mode_0 normal
+-write_mode_1 normal
+-speed false
+-reset_mode sync
