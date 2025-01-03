@@ -40,8 +40,7 @@ module sdram (
 	input		  sync,
 	input		  refresh,
 	input [15:0]	  din, // data input from chipset/cpu
-//	output reg [15:0] dout,
-	output [15:0] dout,
+	output reg [15:0] dout,
 	input [21:0]	  addr, // 22 bit word address
 	input [1:0]	  ds, // upper/lower data strobe
 	input		  cs, // cpu/chipset requests read/wrie
@@ -107,19 +106,7 @@ assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
 
 // drive data to SDRAM on write
-assign sd_data = we_R ? { din_R, din_R } : 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz;
-
-assign dout = addr_R[0]?sd_data[15:0]:sd_data[31:16];
-   
-// honour byte select on write. Always read all four bytes
-// assign sd_dqm = !we_R?4'b0000:addr[0]?{2'b11,ds_R}:{ds_R,2'b11};
-
-reg [1:0] ds_R;
-reg we_R;
-reg cs_R;
-reg ref_R;
-reg [21:0] addr_R;   
-reg [15:0] din_R;   
+assign sd_data = we ? { din, din } : 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz;
 
 localparam SYNCD = 1;
    
@@ -166,17 +153,9 @@ always @(posedge clk) begin
          // start a ram cycle at the rising edge of sync. In case of NanoMig
 	 // this is actually the rising edge of the 7Mhz clock
          if (!syncD[SYNCD] && syncD[SYNCD-1]) begin
-	    cs_R <= cs;	    
             state <= 3'd1;		 
 	       
             if(cs) begin
-	       // latch input signals
-	       ds_R <= ds;
-	       we_R <= we;
-	       ref_R <= refresh;
-	       addr_R <= addr;	       
-	       din_R <= din;	       
-
 	       if(!refresh) begin
 		  // RAS phase
 		  sd_cmd <= CMD_ACTIVE;
@@ -198,18 +177,16 @@ always @(posedge clk) begin
          // -------------------  cpu/chipset read/write ----------------------
 
          // CAS phase 
-         if(state == STATE_CMD_CONT && !ref_R) begin
-	    if(cs_R) begin
-	       sd_cmd <= we_R?CMD_WRITE:CMD_READ;
-               sd_addr <= { 3'b100, addr_R[8:1] };
+         if(state == STATE_CMD_CONT && !refresh) begin
+	    if(cs) begin
+	       sd_cmd <= we?CMD_WRITE:CMD_READ;
+               sd_addr <= { 3'b100, addr[8:1] };
 	    end else
               sd_cmd <= CMD_AUTO_REFRESH;
          end
 	 
-	 if(state == STATE_READ+1) begin
-//	    if(cs_R && !we_R)
-//	      dout <= addr_R[0]?sd_data[15:0]:sd_data[31:16];
-	 end
+	 if(state == STATE_READ && !we)
+	    dout <= addr[0]?sd_data[15:0]:sd_data[31:16];
 	 
 	 if(state == STATE_LAST) 
 	   state <= STATE_IDLE;	    

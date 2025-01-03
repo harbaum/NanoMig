@@ -138,15 +138,19 @@ always @(posedge clk or negedge resetn) begin
         if(state == 6'd7)
             dspi_mode <= 1'b1;
 
+        // latch output and shift into 16 bit register
+	if(state >= 6'd24 && state <= 6'd31)
+	  dout <= { dout[13:0], dspi_in};
+
         // latch output
-        if(state == 6'd24) dout[15:14] <= dspi_in;
-        if(state == 6'd25) dout[13:12] <= dspi_in;
-        if(state == 6'd26) dout[11:10] <= dspi_in;
-        if(state == 6'd27) dout[9:8]   <= dspi_in;
-        if(state == 6'd28) dout[7:6]   <= dspi_in;
-        if(state == 6'd29) dout[5:4]   <= dspi_in;
-        if(state == 6'd30) dout[3:2]   <= dspi_in;
-        if(state == 6'd31) dout[1:0]   <= dspi_in;
+//        if(state == 6'd24) dout[15:14] <= dspi_in;
+//        if(state == 6'd25) dout[13:12] <= dspi_in;
+//        if(state == 6'd26) dout[11:10] <= dspi_in;
+//        if(state == 6'd27) dout[9:8]   <= dspi_in;
+//        if(state == 6'd28) dout[7:6]   <= dspi_in;
+//        if(state == 6'd29) dout[5:4]   <= dspi_in;
+//        if(state == 6'd30) dout[3:2]   <= dspi_in;
+//        if(state == 6'd31) dout[1:0]   <= dspi_in;
 
         // signal that the transfer is done
         if(state == 6'd31) begin
