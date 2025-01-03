@@ -565,18 +565,6 @@ wire [15:0] sdram_din     = rom_done?ram_dout:flash_doutD;
 wire [1:0]  sdram_be      = rom_done?ram_be:2'b00;
 wire		sdram_we      = rom_done?sdram_rw:flash_ram_write; 
 
-// include test rom and add some small ammount of test ram
-reg [15:0] test_rom [0:1023];
-initial begin
-   $readmemh("ram_test/ram_test.hex", test_rom);
-end
-reg [15:0] test_ram [0:1023];
-
-// first 2k words / 4k bytes are internal test rom
-wire [15:0] sdram_dout_x;
-//assign sdram_dout = (ram_a[22:19] == 4'hf && ram_a[18:11] == 0)?test_rom[ram_a[10:1]]:
-//					sdram_dout_x;
-
 sdram sdram (
   	.sd_clk     ( O_sdram_clk   ), // sd clock
 	.sd_cke     ( O_sdram_cke   ), // clock enable

@@ -149,29 +149,33 @@ always @(posedge clk28m)
 reg [15:0] lbf [1023:0]/*synthesis syn_ramstyle = "block_ram"*/;	// line buffer for scan doubling (there are 908/910 hires pixels in every line)
 reg [15:0] lbfo;			// line buffer output register
 reg [15:0] lbfo2;			// compensantion for one clock delay of the second line buffer
-reg [15:0] lbfd [1023:0]/*synthesis syn_ramstyle = "block_ram"*/;	// delayed line buffer for vertical interpolation
 reg [15:0] lbfdo;			// delayed line buffer output register
 
-// line buffer write
-always @(posedge clk28m)
-	lbf[wr_ptr[10:1]] <= { _hsync_in, red, green, blue };
+// line buffer write and read
+always @(posedge clk28m) begin
+   lbf[wr_ptr[10:1]] <= { _hsync_in, red, green, blue };
+   lbfo <= lbf[rd_ptr[9:0]];
+end
+   
+reg [15:0] lbfd [1023:0]; // delayed line buffer for vertical interpolation
 
-//line buffer read
-always @(posedge clk28m)
-	lbfo <= lbf[rd_ptr[9:0]];
+//delayed line buffer read/write
+always @(posedge clk28m) begin
+   reg [15:0] lbfdoD;   
 
-//delayed line buffer write
-always @(posedge clk28m)
-	lbfd[rd_ptr[9:0]] <= lbfo;
-
-//delayed line buffer read
-always @(posedge clk28m)
-	lbfdo <= lbfd[rd_ptr[9:0]];
-
+   // this originally read and wrote the same cell at a time. But gowin (at least 1.9.11)
+   // fails to synthesize this. We thus write one cell "earlier" and delay the output word to
+   // compensate for that. This should cause the first pixel to be interpolated wrongly. But
+   // that's not part of the visible area, anyway
+   lbfd[rd_ptr[9:0]-10'd1] <= lbfo;
+   lbfdoD <= lbfd[rd_ptr[9:0]];
+   lbfdo <= lbfdoD;   
+end
+   
 //delayed line buffer pixel by one clock cycle
 always @(posedge clk28m)
-	lbfo2 <= lbfo;
-
+   lbfo2 <= lbfo;
+   
 // output pixel generation - vertical interpolation
 always @(posedge clk28m)
 begin
