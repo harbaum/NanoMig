@@ -1,12 +1,12 @@
 # NanoMig
 
-NanoMig is a port of the [Minimig](https://en.wikipedia.org/wiki/Minimig) to the [Tang Nano 20K](https://wiki.sipeed.com/hardware/en/tang/tang-nano-20k/nano-20k.html) FPGA development board.
+NanoMig is a port of the [Minimig](https://en.wikipedia.org/wiki/Minimig) Commdore Amiga FPGA implementation to the [Tang Nano 20K](https://wiki.sipeed.com/hardware/en/tang/tang-nano-20k/nano-20k.html), [Tang Primer 25K](https://wiki.sipeed.com/hardware/en/tang/tang-primer-25k/primer-25k.html) and [Tang Mega 138K Pro](https://wiki.sipeed.com/hardware/en/tang/tang-mega-138k/mega-138k-pro.html) FPGA development boards.
 
 ![NanoMig](doc/nanomig.jpg)
 
-This is based on the [MiSTeryNano project](https://github.com/harbaum/MiSTeryNano/) and also relies on a [M0S Dock](https://wiki.sipeed.com/hardware/en/maixzero/m0s/m0s.html) being connected to the Tang Nano 20K. Alternately you can use a [Raspberry Pi Pico](https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html) or [esp32-s2](https://www.espressif.com/en/products/socs/esp32-s2)/[s3](https://www.espressif.com/en/products/socs/esp32-s3) and use the [FPGA companion firmware](http://github.com/harbaum/FPGA-Companion).
+This is based on the [MiSTeryNano project](https://github.com/harbaum/MiSTeryNano/) and also relies on a [FPGA companion](http://github.com/harbaum/FPGA-Companion) to be connected to the FPGA board for USB support and on-screen-display control.
 
-This is currently a very early work in progress. The current version is based on the [MiSTer Minimig AGA code](https://github.com/MiSTer-devel/Minimig-AGA_MiSTer) and runs many Amiga games and demos.
+This is still a work in progress. The current version is based on the [MiSTer Minimig AGA code](https://github.com/MiSTer-devel/Minimig-AGA_MiSTer) and runs many Amiga games and demos.
 
 Current state:
 
@@ -17,11 +17,12 @@ Current state:
   * Up to four virtual floppy drives
   * HDMI video and audio, PAL and NTSC
   * Keyboard, Mouse and Joystick via USB
+  * Virtual IDE hard disk read an write support
+  * Runs on [Tang Nano 20k](https://wiki.sipeed.com/hardware/en/tang/tang-nano-20k/nano-20k.html), [Primer 25K](https://wiki.sipeed.com/hardware/en/tang/tang-primer-25k/primer-25k.html) and [Mega 138K Pro](https://wiki.sipeed.com/hardware/en/tang/tang-mega-138k/mega-138k-pro.html)
   * [Fully simulated](sim)
 
 Planned features:
-  * Virtual IDE hard disk support
-  * Floppy and hard disk write support
+  * Floppy disk write support
   * Accelerated 68020 support (may not fit)
   * AGA support (may not fit)
 
@@ -29,15 +30,22 @@ Planned features:
 
 These youtube shorts mainly document the progress:
 
-  * [NanoMig #1: Amiga DiagROM booting on Tang Nano 20k](https://www.youtube.com/shorts/ti7aLr5Kjqc)
-  * [NanoMig #2: USB keyboard and audio for the FPGA Amiga](https://www.youtube.com/shorts/5n52x6f5NDI)
-  * [NanoMig #3: Booting workbench for the first time on Tang Nano 20k](https://www.youtube.com/shorts/ZvdcHXi-k2g)
-  * [NanoMig #4: Running Amiga Pro tracker on the Tang Nano 20k](https://www.youtube.com/shorts/00sgeovKQa4)
-  * [NanoMig #5: Cheap FPGA Amiga finally runs Planet Rocklobster Demo](https://youtube.com/shorts/PSqerpTvJrw)
-  * [NanoMig #6: First signs of life with the 68ec020](https://www.youtube.com/shorts/uFKjddN-WSA)
-  * [NanoMig #7: Tiniest Amiga running Gods](https://www.youtube.com/shorts/vbYURdxtEAQ)
-  * [NanoMig #8: Booting from virtual Harddisk](https://www.youtube.com/shorts/9LJ0tsSZb60)
- 
+  * [NanoMig #10: World of Commodore Amiga Demo on Tang Primer 25k](https://youtube.com/shorts/XdLlrg1wgko)
+  * [NanoMig #9: Amiga speedball 2 on Tang Mega 138k Pro](https://youtube.com/shorts/NHFjJwGAOZ0)
+  * [NanoMig #8: Booting from virtual Harddisk](https://youtube.com/shorts/9LJ0tsSZb60)
+
+<details><summary>More ...</summary>
+<ul>
+  <li><a href="https://youtube.com/shorts/vbYURdxtEAQ">NanoMig #7: Tiniest Amiga running Gods</a></li>
+  <li><a href="https://youtube.com/shorts/uFKjddN-WSA">NanoMig #6: First signs of life with the 68ec020</a></li>
+  <li><a href="https://youtube.com/shorts/PSqerpTvJrw">NanoMig #5: Cheap FPGA Amiga finally runs Planet Rocklobster Demo</a></li>
+  <li><a href="https://youtube.com/shorts/00sgeovKQa4">NanoMig #4: Running Amiga Pro tracker on the Tang Nano 20k</a></li>
+  <li><a href="https://www.youtube.com/shorts/ZvdcHXi-k2g">NanoMig #3: Booting workbench for the first time on Tang Nano 20k</a></li>
+  <li><a href="https://www.youtube.com/shorts/5n52x6f5NDI">NanoMig #2: USB keyboard and audio for the FPGA Amiga</a></li>
+  <li><a href="https://www.youtube.com/shorts/ti7aLr5Kjqc">NanoMig #1: Amiga DiagROM booting on Tang Nano 20k</a></li>
+</ul>
+</details>
+
 ## What's needed?
 
 The necessary binaries can be found in the [project releases](https://github.com/harbaum/NanoMig/releases).
