@@ -115,6 +115,7 @@ wire [1:0] osd_chipmem;         // 0=512k, 1=1M, 2=1.5M, 3=2M
 wire [1:0] osd_slowmem;         // 0=None, 1=512k, 2=1M, 3=1.5M
 wire [1:0] osd_floppy_drives;
 wire       osd_floppy_turbo;
+wire       osd_ide_enable;
 wire [1:0] osd_chipset;         // 0=OCS-A500, 1=OCS-A1000, 2=ECS
 wire       osd_video_mode;      // PAL (0=PAL, 1=NTSC)
 wire [1:0] osd_video_filter;
@@ -288,6 +289,7 @@ sysctrl sysctrl (
 		.system_reset(osd_reset),
 		.system_floppy_drives(osd_floppy_drives),
 		.system_floppy_turbo(osd_floppy_turbo),
+		.system_ide_enable(osd_ide_enable),
 	    .system_chipset(osd_chipset),
 		.system_video_mode(osd_video_mode),
 		.system_video_filter(osd_video_filter),
@@ -381,6 +383,7 @@ wire [5:0] chipset_config = { 1'b0,osd_chipset,osd_video_mode,1'b0 };
 wire [7:0] memory_config = { 4'b0_000, osd_slowmem, osd_chipmem };   
 wire [3:0] floppy_config = { osd_floppy_drives, 1'b0, osd_floppy_turbo };
 wire [3:0] video_config = { osd_video_filter, osd_video_scanlines };   
+wire [5:0] ide_config = { 5'b00000, osd_ide_enable };   
    
 nanomig nanomig
 (
@@ -398,8 +401,8 @@ nanomig nanomig
  .chipset_config(chipset_config),
  .floppy_config(floppy_config),
  .video_config(video_config),
- .ide_config(6'b000111),            // TODO: make configurable
- 
+ .ide_config(ide_config),
+
  // video
  .hs(hs_n), // horizontal sync
  .vs(vs_n), // vertical sync
@@ -429,7 +432,7 @@ nanomig nanomig
  .sdc_busy(sd_busy),
  .sdc_done(sd_done), 
  .sdc_byte_in_strobe(sd_rd_byte_strobe),
- .sdc_byte_in_addr(sd_byte_index),
+ .sdc_byte_addr(sd_byte_index),
  .sdc_byte_in_data(sd_rd_data),
  
  // (s)ram interface
