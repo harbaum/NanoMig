@@ -55,7 +55,9 @@ The necessary binaries can be found in the [project releases](https://github.com
   * Kickstart 1.3 ```kick13.rom``` needs to be flashed at offset 0x400000 _and_ 0x440000
     * ```openFPGALoader --external-flash -o 0x400000 kick13.rom```
     * ```openFPGALoader --external-flash -o 0x440000 kick13.rom```
-  * The latest firmware needs to be flashed to the M0S Dock
-    * Or use a [Raspberry pi pico or esp32-s2/s3](http://github.com/harbaum/FPGA-Companion)
+  * For IDE HDD support Kickstart 3.1 ```kick31.rom``` needs to be flashed at offset 0x400000 only
+    * ```openFPGALoader --external-flash -o 0x400000 kick31.rom```
+  * The [latest firmware](http://github.com/harbaum/FPGA-Companion) needs to be flashed to the support MCU
+    * Currenly supported are [M0S Dock (BL616)](https://github.com/harbaum/FPGA-Companion/tree/main/src/bl616), [Raspberry Pi Pico (RP2040)](https://github.com/harbaum/FPGA-Companion/tree/main/src/rp2040) and [ESP32-S2/S3](https://github.com/harbaum/FPGA-Companion/tree/main/src/esp32) 
   * A default ADF disk image named ```df0.adf``` should be placed on SD card (e.g. workbench 1.3)
-  * For the SD card to work [all components incl. the M0S](https://github.com/harbaum/NanoMig/issues/5) have to work properly
+  * For the SD card to work [all components incl. the support MCU](https://github.com/harbaum/NanoMig/issues/5) have to work properly

@@ -191,16 +191,16 @@ wire [7:0] hid_joy0;
 wire [7:0] hid_joy1;
    
 // signals to wire the floppy controller to the sd card
-wire [3:0]  sd_rd;
-wire [3:0]  sd_wr = 4'b0000;
+wire [7:0]  sd_rd;
+wire [7:0]  sd_wr;
 wire [7:0]  sd_rd_data;
-wire [7:0]  sd_wr_data = 8'h00;
+wire [7:0]  sd_wr_data;
 wire [31:0] sd_sector;  
 wire [8:0]  sd_byte_index;
 wire        sd_rd_byte_strobe;
 wire        sd_busy, sd_done;
 wire [31:0] sd_img_size;
-wire [3:0]  sd_img_mounted;
+wire [7:0]  sd_img_mounted;
 reg         sd_ready;
    
 sd_card #(
@@ -428,12 +428,14 @@ nanomig nanomig
  .sdc_img_size(sd_img_size),
  .sdc_img_mounted(sd_img_mounted), 
  .sdc_rd(sd_rd),
+ .sdc_wr(sd_wr),
  .sdc_sector(sd_sector),
  .sdc_busy(sd_busy),
  .sdc_done(sd_done), 
  .sdc_byte_in_strobe(sd_rd_byte_strobe),
  .sdc_byte_addr(sd_byte_index),
  .sdc_byte_in_data(sd_rd_data),
+ .sdc_byte_out_data(sd_wr_data),
  
  // (s)ram interface
  .ram_data(ram_dout),       // sram data bus
@@ -665,13 +667,13 @@ always @(posedge clk_28m) begin
     end
 end
 
+// sign expand and add both channels
+wire [15:0] audio_mix = { audio_left[14], audio_left} + { audio_right[14], audio_right };
+   
 // shift audio down to reduce amp output volume to a sane range
-localparam AUDIO_SHIFT = 2;   
-   
-wire [15:0] audio_mix =
-			{ {AUDIO_SHIFT+1{ audio_left[14]}},  audio_left[13:AUDIO_SHIFT] } +
-			{ {AUDIO_SHIFT+1{audio_right[14]}}, audio_right[13:AUDIO_SHIFT] };  
-   
+localparam AUDIO_SHIFT = 3;   
+wire [15:0] audio_scaled = { { AUDIO_SHIFT+1{audio_mix[15]}}, audio_mix[14:AUDIO_SHIFT] };   
+
 // count 32 bits, 16 left and 16 right channel. MAX samples
 // on rising edge
 reg [15:0] audio;
@@ -682,7 +684,7 @@ always @(posedge clk_audio) begin
 
    // latch data so it's stable during transmission
    if(audio_bit_cnt == 5'd31)
-	 audio <= 16'h8000 + audio_mix;   
+	 audio <= audio_scaled;   
 end
 
 // generate i2s signals
