@@ -5,9 +5,10 @@ verilog allows them to be run in a verilator simulation on a Linux PC.
 
 Currently implemented in this testbench are:
 
- - Run the complete Minimig and fx68k core on a real kickstart 1.3
+ - Run the complete Minimig and fx68k core on a real kickstart
  - Video output via SDL
- - Floppy disk emulation
+ - Floppy disk read emulation
+ - IDE HDD emulation incl. write support (tested with kick 3.1)
  - SD card emulation
  - UART emulation (for e.g. diagnostic output of DiagROM)
  - Includes a skeleton for a [custom test rom](test_rom)
@@ -41,8 +42,9 @@ For video simulation ```libsdl2``` is needed.
 
 ### Additional files needed
 
-At least a kickstart 1.3 ROM named ```kick13.rom``` is needed to run
-the simulation. Other ROMs like
+At least a kickstart (e.g. 1.3) ROM named ```kick13.rom``` is needed
+to run the simulation, HDD emulation has only been tested with
+kickstart 3.1.  Other ROMs like
 [DiagROM](https://github.com/ChuckyGang/DiagROM) may also work
 although the video simulation is far from being complete and e.g. the
 video output of DiagROM is broken. However, UART output can be enabled

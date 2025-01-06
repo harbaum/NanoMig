@@ -29,7 +29,7 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
-#define KICK "kick13.rom" 
+#define KICK "kick31.rom" 
 // #define KICK "kick12.rom" 
 // #define KICK "DiagROM/DiagROM"
 // #define KICK "test_rom/test_rom.bin"
@@ -37,9 +37,12 @@
 #define FDC_TEST
 
 #ifdef FDC_TEST
-#define FLOPPY_ADF  "df0.adf"
+#define FLOPPY_ADF    "df0.adf"
+#define HARDDISK0_HDF "dh0.hdf"
+
 // #define FDC_RAM_TEST_VERIFY   // verify track data against minimigs original firmware fdd.c. only works with ram_test rom
 FILE *adf_fd = NULL;
+FILE *hdf_fd[] = { NULL, NULL };
 #endif
 
 // #define UART_ONLY
@@ -291,6 +294,29 @@ void capture_video(void) {
   }
 }
 #endif
+
+void hexdump(void *data, int size) {
+  int i, b2c;
+  int n=0;
+  char *ptr = (char*)data;
+
+  if(!size) return;
+
+  while(size>0) {
+    printf("%04x: ", n);
+
+    b2c = (size>16)?16:size;
+    for(i=0;i<b2c;i++)      printf("%02x ", 0xff&ptr[i]);
+    printf("  ");
+    for(i=0;i<(16-b2c);i++) printf("   ");
+    for(i=0;i<b2c;i++)      printf("%c", isprint(ptr[i])?ptr[i]:'.');
+    printf("\n");
+
+    ptr  += b2c;
+    size -= b2c;
+    n    += b2c;
+  }
+}
 
 static uint64_t GetTickCountMs() {
   struct timespec ts;
@@ -777,12 +803,15 @@ void sd_handle()  {
 }      
 #endif
 #endif
- 
+
+#define RDB_U32(a)  (((unsigned long)(sector_buffer[0][4*(a)])<<24) + ((unsigned long)(sector_buffer[0][4*(a)+1])<<16) + ((unsigned long)(sector_buffer[0][4*(a)+2])<<8) + (unsigned long)(sector_buffer[0][4*(a)+3]))
+
 // proceed simulation by one tick
 void tick(int c) {
   static uint64_t ticks = 0;
   static int sector_tx = 0;
   static int sector_tx_cnt = 512;
+  static int sector_rx_cnt = 512;
 
   tb->clk = c;
 
@@ -800,6 +829,13 @@ void tick(int c) {
     if(tb->fdd_led != fdd_led) {
       printf("%.3fms FDD LED = %s\n", simulation_time*1000, tb->fdd_led?"ON":"OFF");
       fdd_led = tb->fdd_led;
+    }
+
+    // check for hdd led
+    static int hdd_led = -1;
+    if(tb->hdd_led != hdd_led) {
+      printf("%.3fms HDD LED = %s\n", simulation_time*1000, tb->hdd_led?"ON":"OFF");
+      hdd_led = tb->hdd_led;
     }
     
     // ========================== analyze uart output (for diag rom) ===========================
@@ -856,16 +892,34 @@ void tick(int c) {
       sub_cnt = 0;
       
       // without SD card emulation we drive the floppy's sector io directly
-      tb->sdc_done = 0;
+      if(tb->sdc_done) {
+	tb->sdc_byte_addr = 0;      
+	tb->sdc_done = 0;
+      }
 	
       // push requested sector data into core
       if(tb->sdc_busy) {
+	if(sector_rx_cnt < 512) {
+
+	  // the address has been put out already. Now read data and
+	  // increase the address
+	  sector_buffer[0][sector_rx_cnt++] = tb->sdc_byte_out_data;
+	  
+	  if(sector_rx_cnt == 512) {
+	    hexdump(sector_buffer[0], 512);
+	    
+	    tb->sdc_done = 1;
+	    tb->sdc_busy = 0;
+	  } else
+	    tb->sdc_byte_addr = sector_rx_cnt;
+	}
+	
 	if(sector_tx_cnt < 512) {
 	  // printf("Send %d/%d\n", sector_tx, sector_tx_cnt);
 	  
 	  tb->sdc_byte_in_strobe = 1;
 	  tb->sdc_byte_in_data = sector_buffer[sector_tx][sector_tx_cnt];
-	  tb->sdc_byte_in_addr = sector_tx_cnt++;
+	  tb->sdc_byte_addr = sector_tx_cnt++;
 	  
 	  if(sector_tx_cnt == 512) {
 	    tb->sdc_done = 1;
@@ -906,14 +960,30 @@ void tick(int c) {
 #endif
 
 #ifndef SD_EMU      
+      static int sdc_wr = -1;
+      if(tb->sdc_wr != sdc_wr && (!tb->sdc_wr || (!tb->sdc_busy && !tb->sdc_done))) {
+	printf("%.3fms SD: sdc_wr = %d\n", simulation_time*1000, tb->sdc_wr);
+	sdc_wr = tb->sdc_wr;
+
+	if(tb->sdc_wr & 0x30 ) {
+	  int drv = (tb->sdc_wr&0x10)?0:1;
+	  tb->sdc_busy = 1;
+
+	  printf("%.3fms SD HDD %d write request, sector %d\n",
+		 simulation_time*1000, drv, tb->sdc_sector);
+	  
+	  tb->sdc_byte_addr = sector_rx_cnt = 0;
+	}
+      }
+
       static int sdc_rd = -1;
-      if(tb->sdc_rd != sdc_rd) {
+      if(tb->sdc_rd != sdc_rd && (!tb->sdc_rd || (!tb->sdc_busy && !tb->sdc_done))) {
 	printf("%.3fms sdc_rd %d\n", simulation_time*1000, tb->sdc_rd);
 	sdc_rd = tb->sdc_rd;
 	
 	if(tb->sdc_rd == 1) {
 	  tb->sdc_busy = 1;
-	  printf("%.3fms SD request, sector %d (tr %d, sd %d, sec %d)\n",
+	  printf("%.3fms SD FDC request, sector %d (tr %d, sd %d, sec %d)\n",
 		 simulation_time*1000, tb->sdc_sector, tb->sdc_sector/22,
 		 (tb->sdc_sector/11)&1, tb->sdc_sector%11);
 	  
@@ -923,6 +993,43 @@ void tick(int c) {
 	  build_track_buffer(tb->sdc_sector, NULL);
 	  sector_tx_cnt = 0;
 	  sector_tx = tb->sdc_sector%11;
+	}
+
+	if(tb->sdc_rd & 0x30 && (!tb->sdc_rd || (!tb->sdc_busy && !tb->sdc_done))) {
+	  int drv = (tb->sdc_rd&0x10)?0:1;
+	  
+	  tb->sdc_busy = 1;
+	  printf("%.3fms SD HDD %d read request, sector %d\n",
+		 simulation_time*1000, drv, tb->sdc_sector);
+
+	  // send one sector into core
+
+	  // Minimig 80MB image:
+	  // 80936960 Bytes
+	  // 158080 sectors total (2*2*2*2*2*2*2*5*13*19)
+	  // CSH from RDB: 627/63/4 = 158004
+	  
+	  if(hdf_fd[drv]) {
+	    fseek(hdf_fd[drv], tb->sdc_sector*512, SEEK_SET);
+	    if(fread(sector_buffer[0], 1, 512, hdf_fd[drv]) != 512) {  perror("hdf read error"); return; }
+	    hexdump(sector_buffer[0], 512);
+
+	    // dump some info on rdb
+	    if(tb->sdc_sector == 0) {
+	      if( strncmp((char*)sector_buffer[0], "RDSK", 4) != 0)
+		printf("Not a RDB image!!\n");
+	      else {
+		printf("DRV%d RDB ID ok\n", drv);
+		printf("Blocksize:  %ld\n", RDB_U32(4));
+		printf("Cylinders:  %ld\n", RDB_U32(16));
+		printf("Sectors:    %ld\n", RDB_U32(17));
+		printf("Heads:      %ld\n", RDB_U32(18));
+	      }
+	    }
+	  }
+	  
+	  sector_tx_cnt = 0;
+	  sector_tx = 0;
 	}
       }
 #endif
@@ -943,9 +1050,34 @@ void tick(int c) {
 	  printf("FLOPPY: Unable to open floppy disk image. Not mounting disk.\n");
       }
       
-      if(tb->sdc_img_size) {    
-	if(insert_counter == 120) tb->sdc_img_mounted = 1;
-	if(insert_counter == 140) tb->sdc_img_mounted = 0;
+      if(insert_counter == 200 || insert_counter == 300) {
+	int drv = (insert_counter == 200)?0:1;
+	
+	if(!drv) {
+#ifdef HARDDISK0_HDF
+	  printf("HDD0: Using image '%s'\n", HARDDISK0_HDF);
+#endif
+	} else {
+#ifdef HARDDISK1_HDF
+	  printf("HDD1: Using image '%s'\n", HARDDISK1_HDF);
+#endif
+	}
+	
+	if(hdf_fd[drv]) {
+	  fseek(hdf_fd[drv], 0, SEEK_END);
+	  tb->sdc_img_size = ftell(hdf_fd[drv]);
+	  
+	  printf("HDD%d: Mounting image size %d bytes.\n", drv, tb->sdc_img_size);	
+	} else
+	  printf("HDD%d: Unable to open harddisk image. Not mounting disk.\n", drv);
+      }
+      
+      if(tb->sdc_img_size) {  
+	if(insert_counter == 120) tb->sdc_img_mounted = 1<<0;
+	if(insert_counter == 220) tb->sdc_img_mounted = 1<<4;
+	if(insert_counter == 320) tb->sdc_img_mounted = 1<<5;
+	if(insert_counter == 140 || insert_counter == 240 || insert_counter == 340) tb->sdc_img_mounted = 0;
+	if(insert_counter == 160 || insert_counter == 260 || insert_counter == 360) tb->sdc_img_size = 0;
       }
       insert_counter++;
     }
@@ -1062,6 +1194,22 @@ int main(int argc, char **argv) {
   // check for af image size and insert it
   adf_fd = fopen(g_adf_path.c_str(), "rb");
   if(!adf_fd) { perror("open file"); }
+
+#ifdef HARDDISK0_HDF
+  // try to open hdf harddisk image
+  hdf_fd[0] = fopen(HARDDISK0_HDF, "rb");
+  if(!hdf_fd[0]) { perror("DRV0: open hdf file"); }
+#else
+  printf("DRV0: No harddisk hdf specified\n");
+#endif
+  
+#ifdef HARDDISK1_HDF
+  // try to open hdf harddisk image
+  hdf_fd[1] = fopen(HARDDISK1_HDF, "rb");
+  if(!hdf_fd[1]) { perror("DRV1: open hdf file"); }
+#else
+  printf("DRV1: No harddisk hdf specified\n");
+#endif
 #endif
   
   tb->reset = 1;
@@ -1102,5 +1250,7 @@ int main(int argc, char **argv) {
 
 #ifdef FDC_TEST
   if(adf_fd) fclose(adf_fd);
+  if(hdf_fd[0]) fclose(hdf_fd[0]);
+  if(hdf_fd[1]) fclose(hdf_fd[1]);
 #endif
 }
