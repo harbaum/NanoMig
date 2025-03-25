@@ -64,6 +64,7 @@ add_file misc/video_analyzer.v
 add_file misc/sd_card.v
 add_file misc/sd_rw.v
 add_file misc/sdcmd_ctrl.v
+add_file misc/amiga_keymap.v
 add_file tang/nano20k/flash_dspi.v
 add_file tang/nano20k/gowin_clkdiv/gowin_clkdiv.v
 add_file tang/nano20k/gowin_rpll/pll_142m.v
@@ -79,6 +80,8 @@ add_file tg68k/TG68K_Pack.vhd
 add_file tg68k/TG68K.vhd
 add_file tg68k/TG68K_ALU.vhd
 add_file tg68k/TG68KdotC_Kernel.vhd
+add_file misc/amiga_xml.hex
+
 set_option -synthesis_tool gowinsynthesis
 set_option -output_base_name nanomig_lcd
 set_option -verilog_std sysv2017
