@@ -51,7 +51,7 @@ These youtube shorts mainly document the progress:
 The necessary binaries can be found in the [project releases](https://github.com/harbaum/NanoMig/releases).
 
   * ```nanomig.fs``` needs to be flashed to the FPGA's flash memory
-    * ```openFPGALoader -fs nanomig.fs```
+    * ```openFPGALoader -f nanomig.fs```
   * Kickstart 1.3 ```kick13.rom``` needs to be flashed at offset 0x400000 _and_ 0x440000
     * ```openFPGALoader --external-flash -o 0x400000 kick13.rom```
     * ```openFPGALoader --external-flash -o 0x440000 kick13.rom```
