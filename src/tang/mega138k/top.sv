@@ -309,7 +309,7 @@ sysctrl sysctrl (
         .int_in( { 4'b0000, sdc_int, 1'b0, hid_int, 1'b0 }),
         .int_ack( int_ack ),
 
-        .buttons( {!reset_n, !user_n} ),
+        .buttons( {!user_n, !reset_n} ),
         .leds(),
         .color(ws2812_color)
 );
